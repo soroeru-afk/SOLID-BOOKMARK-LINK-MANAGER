@@ -41,18 +41,51 @@ export default function NotebookList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(80);
+
+  // 初回スクロール位置に応じた初期件数の計算（スクロール位置復元用）
+  const [visibleCount, setVisibleCount] = useState(() => {
+    const saved = localStorage.getItem('notebook_list_scroll_top');
+    const top = saved ? parseInt(saved, 10) : 0;
+    return top > 0 ? Math.max(80, Math.ceil((top + 1500) / 40)) : 80;
+  });
 
   // ドラッグ＆ドロップ用ステート
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const prevCategoryRef = useRef(activeCategoryId);
+  const prevSearchRef = useRef(searchQuery);
+
   const t = i18n[language];
 
-  // フォルダや検索条件が変わったら表示件数をリセットして瞬時に描画
-  React.useEffect(() => {
-    setVisibleCount(80);
-  }, [activeCategoryId, searchQuery, includeSubfolders]);
+  // 初回マウント時に保存されたスクロール位置を復元
+  useEffect(() => {
+    const savedScroll = localStorage.getItem('notebook_list_scroll_top');
+    if (savedScroll && listContainerRef.current) {
+      const parsedScroll = parseInt(savedScroll, 10);
+      if (!isNaN(parsedScroll) && parsedScroll > 0) {
+        requestAnimationFrame(() => {
+          if (listContainerRef.current) {
+            listContainerRef.current.scrollTop = parsedScroll;
+          }
+        });
+      }
+    }
+  }, []);
+
+  // ユーザーが能動的にフォルダや検索条件を変更した時のみスクロールと件数をリセット
+  useEffect(() => {
+    if (prevCategoryRef.current !== activeCategoryId || prevSearchRef.current !== searchQuery) {
+      prevCategoryRef.current = activeCategoryId;
+      prevSearchRef.current = searchQuery;
+      setVisibleCount(80);
+      if (listContainerRef.current) {
+        listContainerRef.current.scrollTop = 0;
+      }
+      localStorage.setItem('notebook_list_scroll_top', '0');
+    }
+  }, [activeCategoryId, searchQuery]);
 
   // カテゴリマップ
   const catMap = useMemo(() => new Map<string, Category>(categories.map(c => [c.id, c])), [categories]);
@@ -392,8 +425,10 @@ export default function NotebookList({
 
       {/* スクロール可能メインエリア */}
       <div 
+        ref={listContainerRef}
         onScroll={(e) => {
           const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+          localStorage.setItem('notebook_list_scroll_top', String(scrollTop));
           if (scrollHeight - scrollTop - clientHeight < 250) {
             if (visibleCount < filteredNotebooks.length) {
               setVisibleCount(prev => Math.min(prev + 100, filteredNotebooks.length));

@@ -88,14 +88,39 @@ export default function Sidebar({
     }
   };
   
-  // 展開中のカテゴリIDセット
-  // 初期状態はすべて折りたたまれた状態にし、クリックした階層だけを順次開いていく
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  // 展開中のカテゴリIDセット（localStorageで維持）
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('sidebar_expanded_ids');
+    if (saved) {
+      try {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) return new Set(arr);
+      } catch (e) {
+        console.error("Failed to parse sidebar_expanded_ids", e);
+      }
+    }
+    return new Set();
+  });
 
+  useEffect(() => {
+    localStorage.setItem('sidebar_expanded_ids', JSON.stringify(Array.from(expandedIds)));
+  }, [expandedIds]);
+
+  const treeScrollContainerRef = useRef<HTMLDivElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const htmlInputRef = useRef<HTMLInputElement>(null);
   const isResizingRef = useRef(false);
   const t = i18n[language];
+
+  // 初回マウント時にサイドバーのスクロール位置を復元
+  useEffect(() => {
+    const savedTop = localStorage.getItem('sidebar_scroll_top');
+    const savedLeft = localStorage.getItem('sidebar_scroll_left');
+    if (treeScrollContainerRef.current) {
+      if (savedTop) treeScrollContainerRef.current.scrollTop = parseInt(savedTop, 10) || 0;
+      if (savedLeft) treeScrollContainerRef.current.scrollLeft = parseInt(savedLeft, 10) || 0;
+    }
+  }, []);
 
   // activeCategory が変更された際、その先祖フォルダを自動展開して迷子を防止
   useEffect(() => {
@@ -640,7 +665,15 @@ export default function Sidebar({
         </div>
 
         {/* フォルダツリー一覧（縦・横スクロール両対応） */}
-        <div className="flex flex-col gap-0.5 mt-1 flex-1 overflow-y-auto overflow-x-auto pr-1">
+        <div 
+          ref={treeScrollContainerRef}
+          onScroll={(e) => {
+            const { scrollTop, scrollLeft } = e.currentTarget;
+            localStorage.setItem('sidebar_scroll_top', String(scrollTop));
+            localStorage.setItem('sidebar_scroll_left', String(scrollLeft));
+          }}
+          className="flex flex-col gap-0.5 mt-1 flex-1 overflow-y-auto overflow-x-auto pr-1"
+        >
           {filteredTree.length === 0 ? (
             <div className="text-[10px] text-text-dim text-center py-6">
               {folderSearchQuery ? 'NO MATCHING DIRECTORIES' : 'NO DIRECTORIES'}

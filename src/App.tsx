@@ -39,8 +39,29 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-  const [includeSubfolders, setIncludeSubfolders] = useState<boolean>(false);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('active_category_id');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed === '__UNASSIGNED__') return parsed;
+        if (typeof parsed === 'string') {
+          const savedCats = localStorage.getItem('categories');
+          if (savedCats) {
+            const cats: Category[] = JSON.parse(savedCats);
+            if (cats.some(c => c.id === parsed)) return parsed;
+          }
+        }
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [includeSubfolders, setIncludeSubfolders] = useState<boolean>(() => {
+    const saved = localStorage.getItem('include_subfolders');
+    return saved !== null ? saved === 'true' : false;
+  });
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
 
@@ -81,6 +102,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('notebooks', JSON.stringify(notebooks));
   }, [notebooks]);
+
+  useEffect(() => {
+    localStorage.setItem('active_category_id', JSON.stringify(activeCategoryId));
+  }, [activeCategoryId]);
+
+  useEffect(() => {
+    localStorage.setItem('include_subfolders', String(includeSubfolders));
+  }, [includeSubfolders]);
 
   // 通知の自動消去
   useEffect(() => {
@@ -249,6 +278,11 @@ export default function App() {
     setSearchQuery('');
     localStorage.removeItem('notebooks');
     localStorage.removeItem('categories');
+    localStorage.removeItem('active_category_id');
+    localStorage.removeItem('sidebar_expanded_ids');
+    localStorage.removeItem('sidebar_scroll_top');
+    localStorage.removeItem('sidebar_scroll_left');
+    localStorage.removeItem('notebook_list_scroll_top');
     setIsResetConfirmOpen(false);
     setNotification(
       language === 'JP'
