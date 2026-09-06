@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-base-bg: var(--theme-base-bg);
+  --color-panel-bg: var(--theme-panel-bg);
+  --color-border-main: var(--theme-border-main);
+  --color-border-light: var(--theme-border-light);
+  --color-text-dim: var(--theme-text-dim);
+  --color-text-normal: var(--theme-text-normal);
+  --color-text-bright: var(--theme-text-bright);
+  --color-accent-bg: var(--theme-accent-bg);
+  --color-accent-text: var(--theme-accent-text);
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --theme-base-bg: #e2e8f0;
+  --theme-panel-bg: #f8fafc;
+  --theme-border-main: #b4c2d3;
+  --theme-border-light: #64748b;
+  --theme-text-dim: #475569;
+  --theme-text-normal: #1e293b;
+  --theme-text-bright: #090d16;
+  --theme-accent-bg: #1e293b;
+  --theme-accent-text: #f8fafc;
+
+  --app-font: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* フォントバリエーション */
+[data-font="meiryo"] {
+  --app-font: "Meiryo", "メイリオ", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+[data-font="noto"] {
+  --app-font: "Noto Sans JP", "Segoe UI", -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+}
+
+[data-font="mono"] {
+  --app-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+[data-font="yugothic"] {
+  --app-font: "Yu Gothic Medium", "Yu Gothic", "游ゴシック体", "YuGothic", "Hiragino Sans", sans-serif;
+}
+
+[data-font="biz"] {
+  --app-font: "BIZ UDPGothic", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+}
+
+[data-theme="dark"] {
+  --theme-base-bg: #090f19;
+  --theme-panel-bg: #101a2b;
+  --theme-border-main: #1d304a;
+  --theme-border-light: #2d486e;
+  --theme-text-dim: #5c7ca5;
+  --theme-text-normal: #8eaecf;
+  --theme-text-bright: #c8dcf2;
+  --theme-accent-bg: #1c2e47;
+  --theme-accent-text: #c8dcf2;
+}
+
+[data-theme="black"] {
+  --theme-base-bg: #0c0d0e;
+  --theme-panel-bg: #141619;
+  --theme-border-main: #25282e;
+  --theme-border-light: #3f444e;
+  --theme-text-dim: #7b8290;
+  --theme-text-normal: #c4cbd6;
+  --theme-text-bright: #f6f8fb;
+  --theme-accent-bg: #272a31;
+  --theme-accent-text: #ffffff;
+}
+
+[data-theme="red"] {
+  --theme-base-bg: #0d0606;
+  --theme-panel-bg: #170b0b;
+  --theme-border-main: #3a1515;
+  --theme-border-light: #612222;
+  --theme-text-dim: #b05a5a;
+  --theme-text-normal: #f09696;
+  --theme-text-bright: #ffc4c4;
+  --theme-accent-bg: #421515;
+  --theme-accent-text: #ffe0e0;
+}
+
+body {
+  font-family: var(--app-font);
+  @apply bg-base-bg text-text-normal antialiased;
+}
+
+/* カスタムスクロールバー（ネイビーダーク調の細めデザイン） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-border-light) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--theme-border-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--theme-text-dim);
+}

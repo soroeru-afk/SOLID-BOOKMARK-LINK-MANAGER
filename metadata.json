@@ -1,0 +1,6 @@
+{
+  "name": "SOLID BOOKMARK LINK MANAGER",
+  "description": "ChromeやブラウザのブックマークHTMLを階層フォルダ構造を維持したまま取り込み・管理できるサイバーソリッド調のリンクマネージャー",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
