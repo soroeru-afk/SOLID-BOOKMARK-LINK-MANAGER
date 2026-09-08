@@ -86,6 +86,8 @@ export const i18n = {
     confirmDeleteRow: "CONFIRM?",
     confirmDelete: "CONFIRM DELETE",
     cancel: "CANCEL",
+    listSize: "LIST SIZE",
+    linkSize: "LINK SIZE",
   },
   JP: {
     appTitle: "SOLID BOOKMARK LINK MANAGER",
@@ -172,5 +174,7 @@ export const i18n = {
     confirmDeleteRow: "削除確認",
     confirmDelete: "確定して削除",
     cancel: "キャンセル",
+    listSize: "リスト名",
+    linkSize: "リンク名",
   }
 };

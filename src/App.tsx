@@ -65,6 +65,17 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
 
+  // テキストサイズ設定 (localStorageに保存・復元)
+  const [listFontSize, setListFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('font_size_list');
+    return saved ? Math.max(9, Math.min(22, parseInt(saved, 10))) : 11;
+  });
+
+  const [linkFontSize, setLinkFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('font_size_link');
+    return saved ? Math.max(10, Math.min(24, parseInt(saved, 10))) : 13;
+  });
+
   // 検索ステート（キーワードおよびスコープ）
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<SearchScope>('current');
@@ -94,6 +105,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('language', language);
   }, [language]);
+
+  useEffect(() => {
+    localStorage.setItem('font_size_list', String(listFontSize));
+  }, [listFontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('font_size_link', String(linkFontSize));
+  }, [linkFontSize]);
 
   useEffect(() => {
     localStorage.setItem('categories', JSON.stringify(categories));
@@ -417,6 +436,7 @@ export default function App() {
         onImportJson={handleImportJson}
         onImportHtml={handleImportHtml}
         onResetAllData={() => setIsResetConfirmOpen(true)}
+        listFontSize={listFontSize}
       />
 
       <main className="flex-1 p-4 md:p-6 flex flex-col gap-4 max-h-screen overflow-hidden">
@@ -427,6 +447,10 @@ export default function App() {
           onFontChange={setFont}
           language={language} 
           onLanguageChange={setLanguage} 
+          listFontSize={listFontSize}
+          onListFontSizeChange={setListFontSize}
+          linkFontSize={linkFontSize}
+          onLinkFontSizeChange={setLinkFontSize}
         />
         
         {/* 02 検索＆フィルターモジュール */}
@@ -457,6 +481,8 @@ export default function App() {
           onAdd={addNotebooks}
           searchQuery={searchQuery}
           language={language} 
+          listFontSize={listFontSize}
+          linkFontSize={linkFontSize}
         />
       </main>
     </div>

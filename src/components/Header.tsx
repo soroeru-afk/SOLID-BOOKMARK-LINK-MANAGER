@@ -1,6 +1,6 @@
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Palette } from 'lucide-react';
+import { Type, ChevronDown, Palette, Sliders } from 'lucide-react';
 
 interface Props {
   theme: Theme;
@@ -9,6 +9,10 @@ interface Props {
   onFontChange: (font: FontFamily) => void;
   language: Language;
   onLanguageChange: (lang: Language) => void;
+  listFontSize: number;
+  onListFontSizeChange: (size: number) => void;
+  linkFontSize: number;
+  onLinkFontSizeChange: (size: number) => void;
 }
 
 const THEMES: Theme[] = ['black', 'red', 'dark', 'light'];
@@ -19,7 +23,11 @@ export default function Header({
   font,
   onFontChange,
   language, 
-  onLanguageChange 
+  onLanguageChange,
+  listFontSize,
+  onListFontSizeChange,
+  linkFontSize,
+  onLinkFontSizeChange
 }: Props) {
   const t = i18n[language];
 
@@ -56,7 +64,56 @@ export default function Header({
         <div className="flex items-center gap-4">
             <span className="text-[10px] text-text-dim">{t.canvasEnv}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-[10px]">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px]">
+            {/* テキストサイズスライダー群 */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* リスト名サイズ */}
+              <div 
+                className="flex items-center gap-2.5 bg-base-bg border border-border-main hover:border-border-light px-2.5 py-1 transition-colors select-none"
+                title={language === 'JP' ? 'サイドバーのリスト（フォルダ名）の文字サイズを変更' : 'Adjust folder/list font size'}
+              >
+                <span className="text-text-dim font-mono flex items-center gap-1.5 shrink-0 font-medium tracking-wider text-[10px]">
+                  <Sliders size={11} className="text-text-dim" />
+                  <span>{t.listSize}</span>
+                </span>
+                <input 
+                  type="range"
+                  min={9}
+                  max={18}
+                  step={1}
+                  value={listFontSize}
+                  onChange={(e) => onListFontSizeChange(Number(e.target.value))}
+                  className="solid-slider w-16 sm:w-20"
+                />
+                <span className="font-mono font-bold text-text-bright text-[10px] min-w-[28px] text-right">
+                  {listFontSize}PX
+                </span>
+              </div>
+
+              {/* リンク名サイズ */}
+              <div 
+                className="flex items-center gap-2.5 bg-base-bg border border-border-main hover:border-border-light px-2.5 py-1 transition-colors select-none"
+                title={language === 'JP' ? 'ブックマークのリンク名の文字サイズを変更' : 'Adjust bookmark link font size'}
+              >
+                <span className="text-text-dim font-mono flex items-center gap-1.5 shrink-0 font-medium tracking-wider text-[10px]">
+                  <Sliders size={11} className="text-text-dim" />
+                  <span>{t.linkSize}</span>
+                </span>
+                <input 
+                  type="range"
+                  min={10}
+                  max={22}
+                  step={1}
+                  value={linkFontSize}
+                  onChange={(e) => onLinkFontSizeChange(Number(e.target.value))}
+                  className="solid-slider w-16 sm:w-20"
+                />
+                <span className="font-mono font-bold text-text-bright text-[10px] min-w-[28px] text-right">
+                  {linkFontSize}PX
+                </span>
+              </div>
+            </div>
+
             {/* フォント切り替え */}
             <div className="flex items-center gap-1.5">
                 <span className="text-text-dim flex items-center gap-1">
@@ -85,14 +142,14 @@ export default function Header({
             <button 
               type="button"
               onClick={handleToggleTheme}
-              className="flex items-center gap-2 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none"
+              className="flex items-center gap-2 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0"
               title={language === 'JP' ? 'クリックしてテーマ切り替え (BLACK → RED → NAVY → LIGHT)' : 'Click to cycle theme (BLACK → RED → NAVY → LIGHT)'}
             >
-              <Palette size={12} className="text-text-dim" />
-              <span className="text-text-dim">{t.theme}</span>
+              <Palette size={12} className="text-text-dim shrink-0" />
+              <span className="text-text-dim shrink-0">{t.theme}</span>
               <span className="flex items-center gap-1.5 font-bold font-mono">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
-                <span>{getThemeLabel(theme)}</span>
+                <span className="inline-block min-w-[44px] text-left">{getThemeLabel(theme)}</span>
               </span>
             </button>
             

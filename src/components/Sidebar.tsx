@@ -20,6 +20,7 @@ interface Props {
   onImportJson: (content: string) => void;
   onImportHtml: (content: string) => void;
   onResetAllData?: () => void;
+  listFontSize?: number;
 }
 
 interface CategoryTreeNode extends Category {
@@ -45,7 +46,8 @@ export default function Sidebar({
   onExportJson, 
   onImportJson, 
   onImportHtml,
-  onResetAllData
+  onResetAllData,
+  listFontSize = 11
 }: Props) {
   // サイドバーの幅（localStorageで永続化）
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -369,7 +371,7 @@ export default function Sidebar({
     return (
       <div key={node.id} className="flex flex-col min-w-full">
         <div 
-          className={`group/cat flex items-center h-8 pr-1.5 text-[11px] border transition-colors select-none ${
+          className={`group/cat flex items-center min-h-[30px] py-0.5 pr-1.5 border transition-colors select-none ${
             isActive 
               ? 'border-border-light bg-border-main text-text-bright font-semibold' 
               : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
@@ -419,7 +421,8 @@ export default function Sidebar({
                 if (e.key === 'Enter') saveEditCategory(node.id);
                 if (e.key === 'Escape') setEditingCatId(null);
               }}
-              className="min-w-0 flex-1 h-6 px-1.5 bg-base-bg border border-border-light text-text-bright focus:outline-none text-[11px]"
+              style={{ fontSize: `${listFontSize}px` }}
+              className="min-w-0 flex-1 h-6 px-1.5 bg-base-bg border border-border-light text-text-bright focus:outline-none"
             />
           ) : (
             <button
@@ -428,6 +431,7 @@ export default function Sidebar({
                 onSelectCategory(node.id);
                 if (hasChildren) setExpandedIds(prev => new Set(prev).add(node.id));
               }}
+              style={{ fontSize: `${listFontSize}px` }}
               className="min-w-0 flex-1 text-left truncate cursor-pointer font-medium tracking-wide text-text-normal group-hover/cat:text-text-bright"
               title={`${node.name}\nパス: ${node.path || node.name}`}
             >
@@ -635,15 +639,15 @@ export default function Sidebar({
           <div className="flex flex-col gap-0.5 mt-0.5">
             <button 
               onClick={() => onSelectCategory(null)}
-              className={`w-full h-7 flex items-center justify-between px-2.5 border ${
+              className={`w-full min-h-[28px] py-1 flex items-center justify-between px-2.5 border ${
                 activeCategory === null 
                   ? 'border-border-light bg-border-main text-text-bright font-semibold' 
                   : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-              } transition-colors text-[11px] cursor-pointer`}
+              } transition-colors cursor-pointer`}
             >
               <div className="flex items-center gap-2 truncate min-w-0">
                 <Folders size={13} className="shrink-0" />
-                <span className="font-bold truncate">[ {t.allData} ]</span>
+                <span className="font-bold truncate" style={{ fontSize: `${listFontSize}px` }}>[ {t.allData} ]</span>
               </div>
               <span className="text-[9px] font-mono opacity-80 shrink-0 ml-1">[{notebooks.length}]</span>
             </button>
@@ -651,13 +655,13 @@ export default function Sidebar({
             {unassignedCount > 0 && (
               <button 
                 onClick={() => onSelectCategory('__UNASSIGNED__')}
-                className={`w-full h-6 flex items-center justify-between px-2.5 border ${
+                className={`w-full min-h-[26px] py-0.5 flex items-center justify-between px-2.5 border ${
                   activeCategory === '__UNASSIGNED__' 
                     ? 'border-border-light bg-border-main text-text-bright font-semibold' 
                     : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-                } transition-colors text-[10px] cursor-pointer`}
+                } transition-colors cursor-pointer`}
               >
-                <span className="italic truncate">{t.unassigned}</span>
+                <span className="italic truncate" style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>
                 <span className="text-[9px] font-mono opacity-80 shrink-0 ml-1">[{unassignedCount}]</span>
               </button>
             )}

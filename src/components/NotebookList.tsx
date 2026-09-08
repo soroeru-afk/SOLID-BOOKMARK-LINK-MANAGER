@@ -19,6 +19,8 @@ interface Props {
   onAdd: (items: {title: string, url: string, categoryId: string}[]) => void;
   searchQuery: string;
   language: Language;
+  listFontSize?: number;
+  linkFontSize?: number;
 }
 
 export default function NotebookList({ 
@@ -35,7 +37,9 @@ export default function NotebookList({
   onReorder,
   onAdd,
   searchQuery,
-  language 
+  language,
+  listFontSize = 11,
+  linkFontSize = 13
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -463,7 +467,10 @@ export default function NotebookList({
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
                       <Folder size={14} className="text-text-normal group-hover:text-text-bright shrink-0 transition-colors" />
-                      <span className="text-[11px] font-semibold text-text-bright truncate">
+                      <span 
+                        className="font-semibold text-text-bright truncate"
+                        style={{ fontSize: `${listFontSize}px` }}
+                      >
                         {sub.name}
                       </span>
                     </div>
@@ -645,7 +652,8 @@ export default function NotebookList({
                       {editingId === nb.id ? (
                           <input
                             type="text"
-                            className="flex-1 min-w-0 bg-base-bg border border-border-light text-text-bright px-2 py-1 focus:outline-none text-[11px]"
+                            style={{ fontSize: `${linkFontSize}px` }}
+                            className="flex-1 min-w-0 bg-base-bg border border-border-light text-text-bright px-2 py-1 focus:outline-none"
                             value={editTitle}
                             onChange={e => setEditTitle(e.target.value)}
                             onBlur={() => saveEdit(nb.id)}
@@ -665,6 +673,7 @@ export default function NotebookList({
                                 href={nb.url}
                                 target="_blank"
                                 rel="noreferrer"
+                                style={{ fontSize: `${linkFontSize}px` }}
                                 className="text-text-bright hover:underline truncate font-medium transition-colors"
                                 title={nb.title}
                               >
