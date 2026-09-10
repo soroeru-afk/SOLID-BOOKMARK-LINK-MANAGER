@@ -8,6 +8,8 @@ import { Language } from './i18n';
 import { parseNetscapeBookmarks } from './utils/bookmarkParser';
 import { CheckCircle2, X, AlertTriangle } from 'lucide-react';
 import { i18n } from './i18n';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
 
 export type Theme = 'black' | 'red' | 'dark' | 'light';
 export type FontFamily = 'meiryo' | 'noto' | 'mono' | 'yugothic' | 'biz';
@@ -76,6 +78,38 @@ export default function App() {
     return saved ? Math.max(10, Math.min(24, parseInt(saved, 10))) : 13;
   });
 
+  // リンクの開き方モード（独立ウィンドウ / 新規タブ）
+  const [linkOpenMode, setLinkOpenMode] = useState<LinkOpenMode>(() => {
+    const saved = localStorage.getItem('link_open_mode');
+    return (saved === 'tab' || saved === 'window') ? saved : 'window';
+  });
+
+  // 独立ウィンドウのサイズプリセット（標準 1280 / ワイド 1440 / 特大 1680 / 超特大 1920×1160 / 全画面 MAX / コンパクト 1040 / カスタム）
+  const [windowSizePreset, setWindowSizePreset] = useState<WindowSizePreset>(() => {
+    const saved = localStorage.getItem('window_size_preset');
+    const validPresets: WindowSizePreset[] = ['compact', 'standard', 'wide', 'ultra', 'fhd', 'max', 'custom'];
+    return validPresets.includes(saved as WindowSizePreset) ? (saved as WindowSizePreset) : 'standard';
+  });
+
+  // カスタムウィンドウサイズ（横幅 W × 高さ H）
+  const [customDimensions, setCustomDimensions] = useState<CustomWindowDimensions>(() => {
+    const saved = localStorage.getItem('custom_window_dimensions');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+          return {
+            width: Math.max(640, Math.min(3840, parsed.width)),
+            height: Math.max(480, Math.min(2160, parsed.height))
+          };
+        }
+      } catch (e) {
+        // ignore parse error
+      }
+    }
+    return { width: 1560, height: 980 };
+  });
+
   // 検索ステート（キーワードおよびスコープ）
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<SearchScope>('current');
@@ -113,6 +147,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('font_size_link', String(linkFontSize));
   }, [linkFontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('link_open_mode', linkOpenMode);
+  }, [linkOpenMode]);
+
+  useEffect(() => {
+    localStorage.setItem('window_size_preset', windowSizePreset);
+  }, [windowSizePreset]);
+
+  useEffect(() => {
+    localStorage.setItem('custom_window_dimensions', JSON.stringify(customDimensions));
+  }, [customDimensions]);
 
   useEffect(() => {
     localStorage.setItem('categories', JSON.stringify(categories));
@@ -483,7 +529,16 @@ export default function App() {
           language={language} 
           listFontSize={listFontSize}
           linkFontSize={linkFontSize}
+          linkOpenMode={linkOpenMode}
+          onLinkOpenModeChange={setLinkOpenMode}
+          windowSizePreset={windowSizePreset}
+          onWindowSizePresetChange={setWindowSizePreset}
+          customDimensions={customDimensions}
+          onCustomDimensionsChange={setCustomDimensions}
         />
+        
+        {/* PWA オフライン状態インジケーター */}
+        <OfflineIndicator language={language} />
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
 import { Type, ChevronDown, Palette, Sliders } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
   theme: Theme;
@@ -168,6 +169,9 @@ export default function Header({
                 JP
               </button>
             </div>
+
+            {/* PWA インストールボタン */}
+            <PWAInstallButton language={language} />
         </div>
     </header>
   );

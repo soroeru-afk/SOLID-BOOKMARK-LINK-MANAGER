@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical } from 'lucide-react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
+import { openLink, LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from '../utils/windowOpener';
 
 interface Props {
   notebooks: Notebook[];
@@ -21,6 +22,12 @@ interface Props {
   language: Language;
   listFontSize?: number;
   linkFontSize?: number;
+  linkOpenMode?: LinkOpenMode;
+  onLinkOpenModeChange?: (mode: LinkOpenMode) => void;
+  windowSizePreset?: WindowSizePreset;
+  onWindowSizePresetChange?: (preset: WindowSizePreset) => void;
+  customDimensions?: CustomWindowDimensions;
+  onCustomDimensionsChange?: (dims: CustomWindowDimensions) => void;
 }
 
 export default function NotebookList({ 
@@ -39,12 +46,40 @@ export default function NotebookList({
   searchQuery,
   language,
   listFontSize = 11,
-  linkFontSize = 13
+  linkFontSize = 13,
+  linkOpenMode = 'window',
+  onLinkOpenModeChange,
+  windowSizePreset = 'standard',
+  onWindowSizePresetChange,
+  customDimensions = { width: 1560, height: 980 },
+  onCustomDimensionsChange
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isCustomExpanded, setIsCustomExpanded] = useState(false);
+  const [customWInput, setCustomWInput] = useState(() => String(customDimensions.width));
+  const [customHInput, setCustomHInput] = useState(() => String(customDimensions.height));
+  const [isSaveNoticeVisible, setIsSaveNoticeVisible] = useState(false);
+
+  // customDimensionsが変更されたときにインプット数値を同期
+  useEffect(() => {
+    setCustomWInput(String(customDimensions.width));
+    setCustomHInput(String(customDimensions.height));
+  }, [customDimensions.width, customDimensions.height]);
+
+  const handleSaveCustom = (overrideW?: number, overrideH?: number) => {
+    const rawW = overrideW ?? parseInt(customWInput, 10);
+    const rawH = overrideH ?? parseInt(customHInput, 10);
+    const finalW = Math.max(400, Math.min(3840, isNaN(rawW) ? customDimensions.width : rawW));
+    const finalH = Math.max(300, Math.min(2160, isNaN(rawH) ? customDimensions.height : rawH));
+    
+    onCustomDimensionsChange?.({ width: finalW, height: finalH });
+    onWindowSizePresetChange?.('custom');
+    setIsSaveNoticeVisible(true);
+    setTimeout(() => setIsSaveNoticeVisible(false), 2000);
+  };
 
   // 初回スクロール位置に応じた初期件数の計算（スクロール位置復元用）
   const [visibleCount, setVisibleCount] = useState(() => {
@@ -197,6 +232,17 @@ export default function NotebookList({
   const formatDate = (ms: number) => {
     const d = new Date(ms);
     return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  };
+
+  const handleOpenLink = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    // Ctrl / Cmd / Shift クリックはブラウザ本来のタブ動作を尊重
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    openLink(url, {
+      mode: linkOpenMode,
+      preset: windowSizePreset,
+      customDimensions
+    });
   };
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -520,7 +566,174 @@ export default function NotebookList({
               <span>&nbsp;|&nbsp; {t.sortDate} &nbsp; {t.totalRecs} <strong className="text-text-bright font-mono">{filteredNotebooks.length}</strong></span>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* 開き方モード（独立ウィンドウ / 新規タブ） */}
+              <div className="flex items-center gap-1.5 border border-border-main bg-base-bg px-2 py-0.5 select-none" title={language === 'JP' ? 'リンククリック時の開き方を選択' : 'Select link open mode'}>
+                <span className="text-text-dim flex items-center gap-1 font-mono text-[9px] font-bold">
+                  <AppWindow size={11} className="text-text-dim" />
+                  <span>{t.openMode}</span>
+                </span>
+                <div className="flex border border-border-main rounded-xs overflow-hidden leading-none text-[9px] font-bold font-mono">
+                  <button
+                    type="button"
+                    onClick={() => onLinkOpenModeChange?.('window')}
+                    className={`px-2 py-1 transition-colors cursor-pointer ${
+                      linkOpenMode === 'window' 
+                        ? 'bg-border-light text-text-bright' 
+                        : 'text-text-dim hover:text-text-normal'
+                    }`}
+                    title={language === 'JP' ? '独立した新しい別ウィンドウで開く（おすすめ）' : 'Open in a standalone new window'}
+                  >
+                    {t.openWindow}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onLinkOpenModeChange?.('tab')}
+                    className={`px-2 py-1 transition-colors cursor-pointer ${
+                      linkOpenMode === 'tab' 
+                        ? 'bg-border-light text-text-bright' 
+                        : 'text-text-dim hover:text-text-normal'
+                    }`}
+                    title={language === 'JP' ? 'ブラウザの新しいタブで開く' : 'Open in a new browser tab'}
+                  >
+                    {t.openTab}
+                  </button>
+                </div>
+              </div>
+
+              {/* 独立ウィンドウサイズ選択（ウィンドウモード時のみ） */}
+              {linkOpenMode === 'window' && (
+                <div className="flex flex-wrap items-center gap-1.5 border border-border-main bg-base-bg px-2 py-0.5 select-none" title={language === 'JP' ? '独立ウィンドウの表示サイズを選択・カスタマイズ' : 'Select or customize window size'}>
+                  <span className="text-text-dim flex items-center gap-1 font-mono text-[9px] font-bold">
+                    <span>{t.windowSize}</span>
+                  </span>
+                  <div className="relative">
+                    <select
+                      value={windowSizePreset}
+                      onChange={(e) => {
+                        const newPreset = e.target.value as WindowSizePreset;
+                        onWindowSizePresetChange?.(newPreset);
+                        if (newPreset === 'custom') {
+                          setIsCustomExpanded(true);
+                        }
+                      }}
+                      className="appearance-none bg-base-bg border border-border-main text-text-bright hover:border-border-light pl-2 pr-5 py-0.5 text-[9px] font-mono font-bold transition-colors cursor-pointer focus:outline-none"
+                    >
+                      <option value="standard">{t.sizeStandard}</option>
+                      <option value="wide">{t.sizeWide}</option>
+                      <option value="ultra">{t.sizeUltra}</option>
+                      <option value="fhd">{t.sizeFhd}</option>
+                      <option value="max">{t.sizeMax}</option>
+                      <option value="compact">{t.sizeCompact}</option>
+                      <option value="custom">
+                        {language === 'JP' 
+                          ? `登録カスタム (${customDimensions.width}×${customDimensions.height})` 
+                          : `CUSTOM (${customDimensions.width}×${customDimensions.height})`}
+                      </option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none text-text-dim">
+                      <ChevronDown size={10} />
+                    </div>
+                  </div>
+
+                  {/* カスタムサイズ設定トグルボタン */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (windowSizePreset !== 'custom') {
+                        onWindowSizePresetChange?.('custom');
+                      }
+                      setIsCustomExpanded(prev => !prev);
+                    }}
+                    className={`p-1 border transition-colors cursor-pointer ${
+                      windowSizePreset === 'custom' || isCustomExpanded
+                        ? 'bg-border-light text-text-bright border-border-light'
+                        : 'border-border-main text-text-dim hover:text-text-bright'
+                    }`}
+                    title={language === 'JP' ? 'ウィンドウサイズをピクセル単位で微調整・登録' : 'Customize & register window size'}
+                  >
+                    <SlidersHorizontal size={10} />
+                  </button>
+
+                  {/* カスタムサイズ入力＆登録欄（custom選択時、またはトグル展開時） */}
+                  {(windowSizePreset === 'custom' || isCustomExpanded) && (
+                    <div className="flex items-center gap-1.5 pl-1.5 border-l border-border-main">
+                      <div className="flex items-center gap-1 font-mono text-[9px]">
+                        <span className="text-text-dim">{t.customWidth}</span>
+                        <input
+                          type="number"
+                          min={400}
+                          max={3840}
+                          step={20}
+                          value={customWInput}
+                          onChange={(e) => setCustomWInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustom(); }}
+                          className="w-13 px-1 py-0.5 bg-input-bg border border-border-main text-text-bright text-[9px] font-mono font-bold text-center focus:outline-none focus:border-border-light"
+                          title={language === 'JP' ? '横幅（ピクセル） - Enterで登録' : 'Width (px) - Press Enter to save'}
+                        />
+                      </div>
+                      <span className="text-text-dim font-mono text-[9px]">×</span>
+                      <div className="flex items-center gap-1 font-mono text-[9px]">
+                        <span className="text-text-dim">{t.customHeight}</span>
+                        <input
+                          type="number"
+                          min={300}
+                          max={2160}
+                          step={20}
+                          value={customHInput}
+                          onChange={(e) => setCustomHInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustom(); }}
+                          className="w-13 px-1 py-0.5 bg-input-bg border border-border-main text-text-bright text-[9px] font-mono font-bold text-center focus:outline-none focus:border-border-light"
+                          title={language === 'JP' ? '高さ（ピクセル） - Enterで登録' : 'Height (px) - Press Enter to save'}
+                        />
+                      </div>
+                      <span className="text-text-dim font-mono text-[8px]">px</span>
+
+                      {/* 登録・保存ボタン */}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveCustom()}
+                        className={`flex items-center gap-1 px-1.5 py-0.5 border font-mono text-[9px] font-bold transition-all cursor-pointer ${
+                          isSaveNoticeVisible
+                            ? 'bg-emerald-900/80 border-emerald-500 text-emerald-200'
+                            : 'bg-base-bg hover:bg-border-main border-border-main text-text-bright hover:border-border-light'
+                        }`}
+                        title={language === 'JP' ? 'このサイズを登録保存する' : 'Save this custom size'}
+                      >
+                        {isSaveNoticeVisible ? (
+                          <>
+                            <Check size={9} className="text-emerald-400" />
+                            <span>{t.customSaved}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save size={9} className="text-text-dim" />
+                            <span>{t.saveCustom}</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* 画面最大化（MAX）プリセット切り替えボタン（カスタム値は上書きされず保持されます） */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onWindowSizePresetChange?.('max');
+                        }}
+                        className={`flex items-center gap-0.5 px-1 py-0.5 border font-mono text-[8px] font-bold transition-colors cursor-pointer ${
+                          windowSizePreset === 'max'
+                            ? 'bg-border-light text-text-bright border-border-light'
+                            : 'bg-base-bg hover:bg-border-main text-text-dim hover:text-text-bright border-border-main'
+                        }`}
+                        title={language === 'JP' ? '画面最大サイズで開く（登録したカスタムサイズはそのまま保持されます）' : 'Open in full screen (keeps your saved custom size)'}
+                      >
+                        <Maximize2 size={9} />
+                        <span>MAX</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ブックマーク追加ボタン */}
               <button 
                 type="button"
@@ -673,12 +886,29 @@ export default function NotebookList({
                                 href={nb.url}
                                 target="_blank"
                                 rel="noreferrer"
+                                onClick={(e) => handleOpenLink(e, nb.url)}
                                 style={{ fontSize: `${linkFontSize}px` }}
-                                className="text-text-bright hover:underline truncate font-medium transition-colors"
-                                title={nb.title}
+                                className="text-text-bright hover:underline truncate font-medium transition-colors cursor-pointer"
+                                title={
+                                  linkOpenMode === 'window'
+                                    ? (language === 'JP' ? `${nb.title} (新しい別ウィンドウで開く)` : `${nb.title} (Open in new window)`)
+                                    : nb.title
+                                }
                               >
                                 {nb.title}
                               </a>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
+                                }}
+                                className="text-text-dim/60 hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
+                                title={language === 'JP' ? '常に独立ウィンドウで開く' : 'Open in standalone window'}
+                              >
+                                <AppWindow size={11} />
+                              </button>
                               <button 
                                   onClick={(e) => startEdit(e, nb)}
                                   className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 shrink-0"
