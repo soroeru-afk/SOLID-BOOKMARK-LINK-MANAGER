@@ -117,6 +117,18 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+
+    // モバイルブラウザ・PWAバー用メタテーマカラー（theme-color）の動的リアルタイム同期
+    const themeColors: Record<Theme, string> = {
+      black: '#0c0d0e',
+      dark: '#090f19',
+      red: '#0d0606',
+      light: '#e2e8f0'
+    };
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', themeColors[theme] || '#0c0d0e');
+    }
   }, [theme]);
 
   useEffect(() => {
