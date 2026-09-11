@@ -59,6 +59,8 @@ export default function NotebookList({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isCustomExpanded, setIsCustomExpanded] = useState(false);
   const [customWInput, setCustomWInput] = useState(() => String(customDimensions.width));
@@ -364,11 +366,21 @@ export default function NotebookList({
     e.stopPropagation();
     setEditingId(nb.id);
     setEditTitle(nb.title);
+    setEditUrl(nb.url);
+    setEditCategoryId(nb.categoryId || '');
   };
 
   const saveEdit = (id: string) => {
     if (editTitle.trim()) {
-      onUpdate(id, { title: editTitle.trim() });
+      let formattedUrl = editUrl.trim();
+      if (formattedUrl && !/^https?:\/\//i.test(formattedUrl)) {
+        formattedUrl = 'https://' + formattedUrl;
+      }
+      onUpdate(id, {
+        title: editTitle.trim(),
+        url: formattedUrl || undefined,
+        categoryId: editCategoryId
+      });
     }
     setEditingId(null);
   };
@@ -917,109 +929,164 @@ export default function NotebookList({
                        }
                     </div>
 
-                    {/* ノードタイトル・リンク */}
-                    <div className="flex-[2] min-w-[200px] flex items-center gap-3 overflow-hidden">
-                      <div className="w-7 h-7 flex items-center justify-center bg-base-bg text-text-normal shrink-0 border border-border-main/50 group-hover:border-border-light transition-colors">
-                        <FileText size={13} />
+                    {editingId === nb.id ? (
+                      <div 
+                        className="flex-1 min-w-0 bg-base-bg border border-border-light p-2.5 my-1 flex flex-col gap-2 rounded-xs shadow-md z-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-mono text-text-dim font-bold">{t.editTitleLabel}</label>
+                            <input
+                              type="text"
+                              style={{ fontSize: `${linkFontSize}px` }}
+                              className="w-full bg-input-bg border border-border-main focus:border-border-light text-text-bright px-2 py-1 outline-none font-bold"
+                              value={editTitle}
+                              onChange={e => setEditTitle(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveEdit(nb.id);
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              autoFocus
+                              placeholder="Title"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-mono text-text-dim font-bold">{t.editUrlLabel}</label>
+                            <input
+                              type="text"
+                              className="w-full bg-input-bg border border-border-main focus:border-border-light text-text-bright px-2 py-1 outline-none font-mono text-[12px]"
+                              value={editUrl}
+                              onChange={e => setEditUrl(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveEdit(nb.id);
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              placeholder="https://..."
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border-main/40">
+                          <div className="flex items-center gap-1.5 min-w-[200px] max-w-[360px]">
+                            <label className="text-[9px] font-mono text-text-dim font-bold shrink-0">{t.editFolderLabel}:</label>
+                            <select
+                              value={editCategoryId}
+                              onChange={(e) => setEditCategoryId(e.target.value)}
+                              className="w-full bg-input-bg border border-border-main text-text-bright text-[11px] px-2 py-0.5 outline-none font-mono truncate"
+                            >
+                              <option value="">{t.unassigned}</option>
+                              {categories.map(c => (
+                                <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(nb.id)}
+                              className="bg-border-light text-text-bright hover:bg-white hover:text-black px-3 py-1 text-[10px] font-mono font-bold transition-colors cursor-pointer"
+                            >
+                              {t.save}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              className="border border-border-main text-text-dim hover:text-text-bright px-2.5 py-1 text-[10px] font-mono transition-colors cursor-pointer"
+                            >
+                              {t.cancel}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      {editingId === nb.id ? (
-                          <input
-                            type="text"
-                            style={{ fontSize: `${linkFontSize}px` }}
-                            className="flex-1 min-w-0 bg-base-bg border border-border-light text-text-bright px-2 py-1 focus:outline-none"
-                            value={editTitle}
-                            onChange={e => setEditTitle(e.target.value)}
-                            onBlur={() => saveEdit(nb.id)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') saveEdit(nb.id);
-                              if (e.key === 'Escape') setEditingId(null);
-                            }}
-                            onClick={e => {
+                    ) : (
+                      <>
+                        {/* ノードタイトル・リンク */}
+                        <div className="flex-[2] min-w-[200px] flex items-center gap-3 overflow-hidden">
+                          <div className="w-7 h-7 flex items-center justify-center bg-base-bg text-text-normal shrink-0 border border-border-main/50 group-hover:border-border-light transition-colors">
+                            <FileText size={13} />
+                          </div>
+                          <div className="flex items-center gap-2 overflow-hidden flex-1 group/edit">
+                            <a 
+                              href={nb.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => handleOpenLink(e, nb.url)}
+                              style={{ fontSize: `${linkFontSize}px` }}
+                              className="text-text-bright hover:underline truncate font-medium transition-colors cursor-pointer"
+                              title={
+                                linkOpenMode === 'window'
+                                  ? (language === 'JP' ? `${nb.title} (新しい別ウィンドウで開く)` : `${nb.title} (Open in new window)`)
+                                  : nb.title
+                              }
+                            >
+                              {nb.title}
+                            </a>
+                            <button
+                              type="button"
+                              onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                            }}
-                            autoFocus
-                          />
-                      ) : (
-                          <div className="flex items-center gap-2 overflow-hidden flex-1 group/edit">
-                              <a 
-                                href={nb.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => handleOpenLink(e, nb.url)}
-                                style={{ fontSize: `${linkFontSize}px` }}
-                                className="text-text-bright hover:underline truncate font-medium transition-colors cursor-pointer"
-                                title={
-                                  linkOpenMode === 'window'
-                                    ? (language === 'JP' ? `${nb.title} (新しい別ウィンドウで開く)` : `${nb.title} (Open in new window)`)
-                                    : nb.title
-                                }
-                              >
-                                {nb.title}
-                              </a>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
-                                }}
-                                className="text-text-dim/60 hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
-                                title={language === 'JP' ? '常に独立ウィンドウで開く' : 'Open in standalone window'}
-                              >
-                                <AppWindow size={11} />
-                              </button>
-                              <button 
-                                  onClick={(e) => startEdit(e, nb)}
-                                  className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 shrink-0"
-                                  title="Edit Title"
-                              >
-                                  <Pencil size={11} />
-                              </button>
+                                openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
+                              }}
+                              className="text-text-dim/60 hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
+                              title={language === 'JP' ? '常に独立ウィンドウで開く' : 'Open in standalone window'}
+                            >
+                              <AppWindow size={11} />
+                            </button>
+                            <button 
+                                onClick={(e) => startEdit(e, nb)}
+                                className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 shrink-0"
+                                title="Edit Title"
+                            >
+                                <Pencil size={11} />
+                            </button>
                           </div>
-                      )}
-                    </div>
+                        </div>
 
-                    <div className="flex-1 min-w-[120px] hidden md:flex items-center gap-2 text-[10px] text-text-dim truncate font-mono">
-                       <Database size={10} className="shrink-0" />
-                       <span className="truncate">{host}</span>
-                    </div>
+                        <div className="flex-1 min-w-[120px] hidden md:flex items-center gap-2 text-[10px] text-text-dim truncate font-mono">
+                           <Database size={10} className="shrink-0" />
+                           <span className="truncate">{host}</span>
+                        </div>
 
-                    <div className="w-28 text-right text-text-dim text-[10px] shrink-0 hidden sm:block font-mono">
-                      {formatDate(nb.createdAt)}
-                    </div>
+                        <div className="w-28 text-right text-text-dim text-[10px] shrink-0 hidden sm:block font-mono">
+                          {formatDate(nb.createdAt)}
+                        </div>
 
-                    <div 
-                      className="w-36 text-right text-text-dim text-[10px] shrink-0 hidden lg:block truncate pl-4"
-                      title={getCategoryName(nb.categoryId)}
-                    >
-                      <span className="hover:text-text-normal">
-                        {getCategoryShortName(nb.categoryId)}
-                      </span>
-                    </div>
-
-                    <div className="w-24 flex items-center justify-end gap-1 text-text-dim text-[10px] shrink-0 font-bold">
-                      <span className="hidden sm:inline opacity-60 mr-1">{t.owner}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleRowDeleteClick(e, nb.id)}
-                        className={`p-1.5 transition-all border cursor-pointer ${
-                          confirmRowDeleteId === nb.id
-                            ? 'bg-red-900/60 text-red-200 border-red-500 font-bold px-2 animate-pulse'
-                            : 'border-transparent text-text-dim/50 hover:text-[#ff7b72] hover:border-red-500/30 hover:bg-red-950/20'
-                        }`}
-                        title={confirmRowDeleteId === nb.id ? t.confirmDeleteRow : t.delete}
-                      >
-                        {confirmRowDeleteId === nb.id ? (
-                          <span className="flex items-center gap-1 text-[9px] text-red-200 font-mono">
-                            <Trash2 size={11} className="shrink-0 animate-bounce" />
-                            {t.confirmDeleteRow}
+                        <div 
+                          className="w-36 text-right text-text-dim text-[10px] shrink-0 hidden lg:block truncate pl-4"
+                          title={getCategoryName(nb.categoryId)}
+                        >
+                          <span className="hover:text-text-normal">
+                            {getCategoryShortName(nb.categoryId)}
                           </span>
-                        ) : (
-                          <Trash2 size={12} className="shrink-0" />
-                        )}
-                      </button>
-                    </div>
+                        </div>
+
+                        <div className="w-24 flex items-center justify-end gap-1 text-text-dim text-[10px] shrink-0 font-bold">
+                          <span className="hidden sm:inline opacity-60 mr-1">{t.owner}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleRowDeleteClick(e, nb.id)}
+                            className={`p-1.5 transition-all border cursor-pointer ${
+                              confirmRowDeleteId === nb.id
+                                ? 'bg-red-900/60 text-red-200 border-red-500 font-bold px-2 animate-pulse'
+                                : 'border-transparent text-text-dim/50 hover:text-[#ff7b72] hover:border-red-500/30 hover:bg-red-950/20'
+                            }`}
+                            title={confirmRowDeleteId === nb.id ? t.confirmDeleteRow : t.delete}
+                          >
+                            {confirmRowDeleteId === nb.id ? (
+                              <span className="flex items-center gap-1 text-[9px] text-red-200 font-mono">
+                                <Trash2 size={11} className="shrink-0 animate-bounce" />
+                                {t.confirmDeleteRow}
+                              </span>
+                            ) : (
+                              <Trash2 size={12} className="shrink-0" />
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -1174,65 +1241,106 @@ export default function NotebookList({
                           </div>
                         </div>
 
-                        {/* タイトルエリア */}
-                        <div className="mb-3">
-                          {isEditing ? (
-                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        {/* タイトル & リンク編集 / 通常表示エリア */}
+                        {isEditing ? (
+                          <div className="flex flex-col gap-2 p-2 bg-input-bg border border-border-light rounded-xs mb-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[9px] font-mono text-text-dim font-bold">{t.editTitleLabel}</label>
                               <input
                                 type="text"
                                 value={editTitle}
                                 onChange={(e) => setEditTitle(e.target.value)}
-                                className="flex-1 bg-input-bg border border-border-light text-text-bright px-2 py-1 text-[13px] font-bold outline-none font-sans"
+                                className="w-full bg-base-bg border border-border-main focus:border-border-light text-text-bright px-2 py-1 text-[12px] font-bold outline-none font-sans"
+                                placeholder="Title"
                                 autoFocus
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') saveEdit(nb.id);
                                   if (e.key === 'Escape') cancelEdit();
                                 }}
                               />
-                              <button
-                                onClick={() => saveEdit(nb.id)}
-                                className="bg-border-light text-text-bright px-2 py-1 text-[10px] font-mono font-bold hover:bg-white hover:text-black transition-colors shrink-0"
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[9px] font-mono text-text-dim font-bold">{t.editUrlLabel}</label>
+                              <input
+                                type="text"
+                                value={editUrl}
+                                onChange={(e) => setEditUrl(e.target.value)}
+                                className="w-full bg-base-bg border border-border-main focus:border-border-light text-text-bright px-2 py-1 text-[11px] font-mono outline-none"
+                                placeholder="https://..."
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEdit(nb.id);
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-0.5">
+                              <label className="text-[9px] font-mono text-text-dim font-bold">{t.editFolderLabel}</label>
+                              <select
+                                value={editCategoryId}
+                                onChange={(e) => setEditCategoryId(e.target.value)}
+                                className="w-full bg-base-bg border border-border-main text-text-bright text-[10px] px-1.5 py-1 outline-none font-mono truncate"
                               >
-                                SAVE
+                                <option value="">{t.unassigned}</option>
+                                {categories.map(c => (
+                                  <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border-main/50">
+                              <button
+                                type="button"
+                                onClick={() => saveEdit(nb.id)}
+                                className="bg-border-light text-text-bright px-2.5 py-1 text-[10px] font-mono font-bold hover:bg-white hover:text-black transition-colors cursor-pointer"
+                              >
+                                {t.save}
                               </button>
                               <button
+                                type="button"
                                 onClick={cancelEdit}
-                                className="border border-border-main text-text-dim hover:text-text-bright px-2 py-1 text-[10px] font-mono shrink-0"
+                                className="border border-border-main text-text-dim hover:text-text-bright px-2 py-1 text-[10px] font-mono cursor-pointer"
                               >
-                                ✕
+                                {t.cancel}
                               </button>
                             </div>
-                          ) : (
-                            <a
-                              href={nb.url}
-                              onClick={(e) => handleOpenLink(e, nb.url)}
-                              draggable={false}
-                              onDragStart={(e) => e.preventDefault()}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ fontSize: `${linkFontSize}px` }}
-                              className="font-bold text-text-bright hover:text-white hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
-                              title={nb.title}
-                            >
-                              {nb.title}
-                            </a>
-                          )}
-                        </div>
-
-                        {/* 詳細メタ情報（URL & 所属フォルダ） */}
-                        <div className="flex flex-col gap-1.5 mb-4 text-[10px] font-mono text-text-dim">
-                          {/* URL表示 */}
-                          <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={nb.url}>
-                            <Globe size={11} className="shrink-0 text-text-dim/60" />
-                            <span className="truncate text-[10px] select-all">{nb.url}</span>
                           </div>
+                        ) : (
+                          <>
+                            {/* タイトルエリア */}
+                            <div className="mb-3">
+                              <a
+                                href={nb.url}
+                                onClick={(e) => handleOpenLink(e, nb.url)}
+                                draggable={false}
+                                onDragStart={(e) => e.preventDefault()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: `${linkFontSize}px` }}
+                                className="font-bold text-text-bright hover:text-white hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
+                                title={nb.title}
+                              >
+                                {nb.title}
+                              </a>
+                            </div>
 
-                          {/* 所属フォルダ */}
-                          <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={catName}>
-                            <Folder size={11} className="shrink-0 text-text-dim/60" />
-                            <span className="truncate text-[10px]">{catName}</span>
-                          </div>
-                        </div>
+                            {/* 詳細メタ情報（URL & 所属フォルダ） */}
+                            <div className="flex flex-col gap-1.5 mb-4 text-[10px] font-mono text-text-dim">
+                              {/* URL表示 */}
+                              <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={nb.url}>
+                                <Globe size={11} className="shrink-0 text-text-dim/60" />
+                                <span className="truncate text-[10px] select-all">{nb.url}</span>
+                              </div>
+
+                              {/* 所属フォルダ */}
+                              <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={catName}>
+                                <Folder size={11} className="shrink-0 text-text-dim/60" />
+                                <span className="truncate text-[10px]">{catName}</span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {/* フッター行: 日付 + OPEN → ボタン (K-Navigatorスタイル) */}

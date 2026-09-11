@@ -108,6 +108,10 @@ export const i18n = {
     openLinkBtn: "OPEN →",
     copyUrl: "COPY URL",
     copied: "COPIED",
+    editTitleLabel: "TITLE",
+    editUrlLabel: "URL",
+    editFolderLabel: "FOLDER",
+    save: "SAVE",
   },
   JP: {
     appTitle: "SOLID BOOKMARK LINK MANAGER",
@@ -216,5 +220,9 @@ export const i18n = {
     openLinkBtn: "OPEN →",
     copyUrl: "URLコピー",
     copied: "コピー完了",
+    editTitleLabel: "名称（タイトル）",
+    editUrlLabel: "リンク先URL",
+    editFolderLabel: "フォルダ",
+    save: "保存",
   }
 };
