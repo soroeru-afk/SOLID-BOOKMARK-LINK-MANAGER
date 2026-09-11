@@ -46,7 +46,7 @@ export default function SearchModule({
               if (e.key === 'Escape') onSearchChange('');
             }}
             placeholder={t.searchPlaceholder}
-            className="w-full h-8 pl-9 pr-8 bg-base-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[11px]"
+            className="w-full h-8 pl-9 pr-8 bg-base-bg border border-border-main text-text-bright placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[11px] font-medium"
           />
           {searchQuery && (
             <button
@@ -69,8 +69,8 @@ export default function SearchModule({
               onClick={() => onScopeChange('current')}
               className={`flex items-center gap-1 px-2 py-1 transition-colors font-medium cursor-pointer ${
                 searchScope === 'current'
-                  ? 'bg-border-main text-text-bright font-bold'
-                  : 'text-text-dim hover:text-text-normal'
+                  ? 'bg-border-light text-white font-bold'
+                  : 'text-text-dim hover:text-text-bright'
               }`}
               title={activeCategoryName ? `現在: ${activeCategoryName}` : t.searchScopeCurrent}
             >
@@ -82,8 +82,8 @@ export default function SearchModule({
               onClick={() => onScopeChange('all')}
               className={`flex items-center gap-1 px-2 py-1 transition-colors font-medium cursor-pointer ${
                 searchScope === 'all'
-                  ? 'bg-border-main text-text-bright font-bold'
-                  : 'text-text-dim hover:text-text-normal'
+                  ? 'bg-border-light text-white font-bold'
+                  : 'text-text-dim hover:text-text-bright'
               }`}
               title={t.searchScopeAll}
             >

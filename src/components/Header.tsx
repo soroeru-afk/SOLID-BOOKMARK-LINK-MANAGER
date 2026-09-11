@@ -41,7 +41,7 @@ export default function Header({
   const getThemeLabel = (th: Theme): string => {
     switch (th) {
       case 'black': return 'BLACK';
-      case 'red': return 'RED';
+      case 'red': return 'CRIMSON RED';
       case 'dark': return 'NAVY';
       case 'light': return 'LIGHT';
       default: return th;
@@ -51,7 +51,7 @@ export default function Header({
   const getThemeDotColor = (th: Theme): string => {
     switch (th) {
       case 'black': return 'bg-zinc-400 border border-zinc-200';
-      case 'red': return 'bg-red-500 border border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]';
+      case 'red': return 'bg-red-500 border border-red-300 shadow-[0_0_8px_rgba(239,68,68,0.8)]';
       case 'dark': return 'bg-sky-400 border border-sky-200';
       case 'light': return 'bg-amber-300 border border-amber-600';
     }
@@ -63,7 +63,7 @@ export default function Header({
             {t.systemControl}
         </div>
         <div className="flex items-center gap-4">
-            <span className="text-[10px] text-text-dim">{t.canvasEnv}</span>
+            <span className="text-[10px] text-text-dim font-mono">{t.canvasEnv}</span>
         </div>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[10px]">
             {/* テキストサイズスライダー群 */}
@@ -117,7 +117,7 @@ export default function Header({
 
             {/* フォント切り替え */}
             <div className="flex items-center gap-1.5">
-                <span className="text-text-dim flex items-center gap-1">
+                <span className="text-text-dim font-mono flex items-center gap-1">
                   <Type size={12} className="text-text-dim" />
                   {t.font}:
                 </span>
@@ -125,7 +125,7 @@ export default function Header({
                   <select
                     value={font}
                     onChange={(e) => onFontChange(e.target.value as FontFamily)}
-                    className="appearance-none bg-base-bg border border-border-main text-text-normal hover:text-text-bright hover:border-border-light pl-2.5 pr-6 py-1 text-[10px] font-medium transition-colors cursor-pointer focus:outline-none"
+                    className="appearance-none bg-base-bg border border-border-main text-text-bright hover:border-border-light pl-2.5 pr-6 py-1 text-[10px] font-bold transition-colors cursor-pointer focus:outline-none"
                   >
                     <option value="meiryo">{t.fontMeiryo}</option>
                     <option value="noto">{t.fontNoto}</option>
@@ -147,24 +147,24 @@ export default function Header({
               title={language === 'JP' ? 'クリックしてテーマ切り替え (BLACK → RED → NAVY → LIGHT)' : 'Click to cycle theme (BLACK → RED → NAVY → LIGHT)'}
             >
               <Palette size={12} className="text-text-dim shrink-0" />
-              <span className="text-text-dim shrink-0">{t.theme}</span>
+              <span className="text-text-dim shrink-0 font-mono">{t.theme}:</span>
               <span className="flex items-center gap-1.5 font-bold font-mono">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
-                <span className="inline-block min-w-[44px] text-left">{getThemeLabel(theme)}</span>
+                <span className="inline-block min-w-[50px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
               </span>
             </button>
             
             {/* 言語切り替え */}
-            <div className="flex border border-border-main rounded text-[10px] overflow-hidden leading-none shrink-0 bg-base-bg">
+            <div className="flex border border-border-main rounded-xs text-[10px] overflow-hidden leading-none shrink-0 bg-base-bg font-mono">
               <button
                 onClick={() => onLanguageChange('EN')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-normal'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
               >
                 EN
               </button>
               <button
                 onClick={() => onLanguageChange('JP')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-normal'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
               >
                 JP
               </button>

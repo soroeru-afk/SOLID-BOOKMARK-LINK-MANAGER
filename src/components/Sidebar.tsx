@@ -373,7 +373,7 @@ export default function Sidebar({
         <div 
           className={`group/cat flex items-center min-h-[30px] py-0.5 pr-1.5 border transition-colors select-none ${
             isActive 
-              ? 'border-border-light bg-border-main text-text-bright font-semibold' 
+              ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
               : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
           }`}
           style={{ paddingLeft: `${indentPx}px` }}
@@ -386,7 +386,9 @@ export default function Sidebar({
                 e.stopPropagation();
                 toggleExpand(node.id);
               }}
-              className="w-4 h-4 flex items-center justify-center text-text-dim hover:text-text-bright shrink-0 mr-0.5"
+              className={`w-4 h-4 flex items-center justify-center shrink-0 mr-0.5 ${
+                isActive ? 'text-accent-text' : 'text-text-dim hover:text-text-bright'
+              }`}
             >
               {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
@@ -405,9 +407,9 @@ export default function Sidebar({
             }}
           >
             {isExpanded && hasChildren ? (
-              <FolderOpen size={13} className={isActive ? 'text-text-bright' : 'text-text-normal group-hover/cat:text-text-bright'} />
+              <FolderOpen size={13} className={isActive ? 'text-accent-text' : 'text-text-normal group-hover/cat:text-text-bright'} />
             ) : (
-              <Folder size={13} className={isActive ? 'text-text-bright' : 'text-text-normal group-hover/cat:text-text-bright'} />
+              <Folder size={13} className={isActive ? 'text-accent-text' : 'text-text-normal group-hover/cat:text-text-bright'} />
             )}
           </span>
 
@@ -424,7 +426,7 @@ export default function Sidebar({
                 if (e.key === 'Escape') setEditingCatId(null);
               }}
               style={{ fontSize: `${listFontSize}px` }}
-              className="min-w-0 flex-1 h-6 px-1.5 bg-base-bg border border-border-light text-text-bright focus:outline-none"
+              className="min-w-0 flex-1 h-6 px-1.5 bg-base-bg border border-border-light text-text-bright font-bold focus:outline-none"
             />
           ) : (
             <button
@@ -436,7 +438,11 @@ export default function Sidebar({
                 }
               }}
               style={{ fontSize: `${listFontSize}px` }}
-              className="min-w-0 flex-1 text-left truncate cursor-pointer font-medium tracking-wide text-text-normal group-hover/cat:text-text-bright"
+              className={`min-w-0 flex-1 text-left truncate cursor-pointer tracking-wide ${
+                isActive 
+                  ? 'text-accent-text font-bold' 
+                  : 'font-medium text-text-normal group-hover/cat:text-text-bright'
+              }`}
               title={`${node.name}\nパス: ${node.path || node.name}`}
             >
               {node.name}
@@ -444,7 +450,11 @@ export default function Sidebar({
           )}
 
           {/* 件数バッジ */}
-          <span className="text-[9px] text-text-dim group-hover/cat:text-text-normal ml-1.5 px-1 shrink-0 font-mono">
+          <span className={`text-[9px] ml-1.5 px-1.5 py-0.5 shrink-0 font-mono ${
+            isActive 
+              ? 'text-accent-text font-bold bg-current/15 rounded-xs' 
+              : 'text-text-dim group-hover/cat:text-text-normal'
+          }`}>
             [{node.totalCount}]
           </span>
 
@@ -458,7 +468,7 @@ export default function Sidebar({
                   setAddingParentId(node.id);
                   setNewSubCatName('');
                 }}
-                className="text-text-dim hover:text-text-bright p-0.5"
+                className={`p-0.5 ${isActive ? 'text-accent-text/80 hover:text-accent-text' : 'text-text-dim hover:text-text-bright'}`}
                 title={language === 'JP' ? 'サブフォルダを追加' : 'Add Subfolder'}
               >
                 <Plus size={11} />
@@ -466,7 +476,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={(e) => startEditCategory(e, node)}
-                className="text-text-dim hover:text-text-bright p-0.5"
+                className={`p-0.5 ${isActive ? 'text-accent-text/80 hover:text-accent-text' : 'text-text-dim hover:text-text-bright'}`}
                 title={t.edit}
               >
                 <Pencil size={11} />
@@ -643,30 +653,30 @@ export default function Sidebar({
           <div className="flex flex-col gap-0.5 mt-0.5">
             <button 
               onClick={() => onSelectCategory(null)}
-              className={`w-full min-h-[28px] py-1 flex items-center justify-between px-2.5 border ${
+              className={`w-full min-h-[28px] py-1 flex items-center justify-between px-2.5 border transition-colors cursor-pointer ${
                 activeCategory === null 
-                  ? 'border-border-light bg-border-main text-text-bright font-semibold' 
+                  ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
                   : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-              } transition-colors cursor-pointer`}
+              }`}
             >
               <div className="flex items-center gap-2 truncate min-w-0">
-                <Folders size={13} className="shrink-0" />
-                <span className="font-bold truncate" style={{ fontSize: `${listFontSize}px` }}>[ {t.allData} ]</span>
+                <Folders size={13} className={`shrink-0 ${activeCategory === null ? 'text-accent-text' : ''}`} />
+                <span className={`truncate ${activeCategory === null ? 'text-accent-text font-bold' : 'font-bold'}`} style={{ fontSize: `${listFontSize}px` }}>[ {t.allData} ]</span>
               </div>
-              <span className="text-[9px] font-mono opacity-80 shrink-0 ml-1">[{notebooks.length}]</span>
+              <span className={`text-[9px] font-mono shrink-0 ml-1 ${activeCategory === null ? 'text-accent-text font-bold bg-current/15 px-1.5 py-0.5 rounded-xs' : 'opacity-80'}`}>[{notebooks.length}]</span>
             </button>
 
             {unassignedCount > 0 && (
               <button 
                 onClick={() => onSelectCategory('__UNASSIGNED__')}
-                className={`w-full min-h-[26px] py-0.5 flex items-center justify-between px-2.5 border ${
+                className={`w-full min-h-[26px] py-0.5 flex items-center justify-between px-2.5 border transition-colors cursor-pointer ${
                   activeCategory === '__UNASSIGNED__' 
-                    ? 'border-border-light bg-border-main text-text-bright font-semibold' 
+                    ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
                     : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-                } transition-colors cursor-pointer`}
+                }`}
               >
-                <span className="italic truncate" style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>
-                <span className="text-[9px] font-mono opacity-80 shrink-0 ml-1">[{unassignedCount}]</span>
+                <span className={`italic truncate ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold' : ''}`} style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>
+                <span className={`text-[9px] font-mono shrink-0 ml-1 ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold bg-current/15 px-1.5 py-0.5 rounded-xs' : 'opacity-80'}`}>[{unassignedCount}]</span>
               </button>
             )}
           </div>
@@ -699,25 +709,25 @@ export default function Sidebar({
 
         {/* データ管理 (JSON / HTML) */}
         <div className="mt-2 pt-2 border-t border-border-main flex flex-col gap-1 shrink-0">
-          <div className="text-[9px] text-text-normal font-bold tracking-wider mb-0.5">{t.dataManagement}</div>
+          <div className="text-[9px] text-text-dim font-bold tracking-wider mb-0.5">{t.dataManagement}</div>
           
           <button 
             onClick={onExportJson} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
+            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
           >
             <Download size={11} className="shrink-0" /> <span className="truncate">{t.exportJson}</span>
           </button>
           
           <button 
             onClick={() => jsonInputRef.current?.click()} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
+            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
           >
             <FileCode size={11} className="shrink-0" /> <span className="truncate">{t.importJson}</span>
           </button>
           
           <button 
             onClick={() => htmlInputRef.current?.click()} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
+            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
           >
             <Upload size={11} className="shrink-0" /> <span className="truncate">{t.importHtml}</span>
           </button>
@@ -725,7 +735,7 @@ export default function Sidebar({
           {onResetAllData && (
             <button 
               onClick={onResetAllData} 
-              className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] mt-0.5 cursor-pointer"
+              className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] mt-0.5 cursor-pointer"
               title={t.clearAllData}
             >
               <RotateCcw size={11} className="shrink-0" /> <span className="truncate">{t.clearAllData}</span>

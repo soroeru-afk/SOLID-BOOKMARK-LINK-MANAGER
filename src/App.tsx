@@ -118,12 +118,12 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
-    // モバイルブラウザ・PWAバー用メタテーマカラー（theme-color）の動的リアルタイム同期
+    // PWA モバイル・ブラウザバー用の theme-color 動的更新
     const themeColors: Record<Theme, string> = {
       black: '#0c0d0e',
+      red: '#120505',
       dark: '#090f19',
-      red: '#0d0606',
-      light: '#e2e8f0'
+      light: '#e2e8f0',
     };
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {

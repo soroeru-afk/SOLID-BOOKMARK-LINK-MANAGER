@@ -103,8 +103,8 @@ export const i18n = {
     customHeight: "H:",
     saveCustom: "SAVE",
     customSaved: "SAVED",
-    viewModeList: "LIST VIEW",
-    viewModeGrid: "CARD VIEW",
+    viewModeList: "LIST",
+    viewModeGrid: "CARD",
     openLinkBtn: "OPEN →",
     copyUrl: "COPY URL",
     copied: "COPIED",
@@ -112,6 +112,7 @@ export const i18n = {
     editUrlLabel: "URL",
     editFolderLabel: "FOLDER",
     save: "SAVE",
+    resetWidths: "Reset Widths",
   },
   JP: {
     appTitle: "SOLID BOOKMARK LINK MANAGER",
@@ -215,8 +216,8 @@ export const i18n = {
     customHeight: "高さ:",
     saveCustom: "登録",
     customSaved: "登録完了",
-    viewModeList: "リスト表示",
-    viewModeGrid: "カード表示",
+    viewModeList: "リスト",
+    viewModeGrid: "カード",
     openLinkBtn: "OPEN →",
     copyUrl: "URLコピー",
     copied: "コピー完了",
@@ -224,5 +225,6 @@ export const i18n = {
     editUrlLabel: "リンク先URL",
     editFolderLabel: "フォルダ",
     save: "保存",
+    resetWidths: "幅リセット",
   }
 };

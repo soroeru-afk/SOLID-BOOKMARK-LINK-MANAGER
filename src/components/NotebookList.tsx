@@ -1,11 +1,29 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
 import { openLink, LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from '../utils/windowOpener';
 
 export type ViewMode = 'list' | 'grid';
+
+export interface ColumnWidths {
+  source: number;
+  timestamp: number;
+  directory: number;
+}
+
+const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
+  source: 140,
+  timestamp: 100,
+  directory: 130,
+};
+
+const MIN_COLUMN_WIDTHS: Record<keyof ColumnWidths, number> = {
+  source: 80,
+  timestamp: 70,
+  directory: 80,
+};
 
 interface Props {
   notebooks: Notebook[];
@@ -77,6 +95,91 @@ export default function NotebookList({
   useEffect(() => {
     localStorage.setItem('bookmark_view_mode', viewMode);
   }, [viewMode]);
+
+  // リスト表示のカラム幅ステート（ローカルストレージ永続化）
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => {
+    try {
+      const saved = localStorage.getItem('solid_col_widths');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          source: typeof parsed.source === 'number' ? Math.max(MIN_COLUMN_WIDTHS.source, parsed.source) : DEFAULT_COLUMN_WIDTHS.source,
+          timestamp: typeof parsed.timestamp === 'number' ? Math.max(MIN_COLUMN_WIDTHS.timestamp, parsed.timestamp) : DEFAULT_COLUMN_WIDTHS.timestamp,
+          directory: typeof parsed.directory === 'number' ? Math.max(MIN_COLUMN_WIDTHS.directory, parsed.directory) : DEFAULT_COLUMN_WIDTHS.directory,
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_COLUMN_WIDTHS;
+  });
+
+  const [activeResizingCol, setActiveResizingCol] = useState<string | null>(null);
+  const resizingRef = useRef<{
+    targetKey: keyof ColumnWidths;
+    startX: number;
+    startWidth: number;
+    isInverse: boolean;
+  } | null>(null);
+
+  const startResizing = useCallback((colKey: 'title' | 'source' | 'timestamp' | 'directory', e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const targetKey: keyof ColumnWidths = colKey === 'title' ? 'source' : colKey;
+    const isInverse = colKey === 'title';
+
+    resizingRef.current = {
+      targetKey,
+      startX: e.clientX,
+      startWidth: columnWidths[targetKey],
+      isInverse,
+    };
+    setActiveResizingCol(colKey);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = moveEvent.clientX - resizingRef.current.startX;
+      // タイトルの右仕切り線を右に引っ張ると、ソース幅を縮めてタイトルを広げる
+      const adjustedDelta = resizingRef.current.isInverse ? -delta : delta;
+      const newWidth = Math.max(
+        MIN_COLUMN_WIDTHS[resizingRef.current.targetKey],
+        Math.min(320, resizingRef.current.startWidth + adjustedDelta)
+      );
+      setColumnWidths(prev => {
+        const updated = { ...prev, [resizingRef.current!.targetKey]: newWidth };
+        try {
+          localStorage.setItem('solid_col_widths', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+    };
+
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      setActiveResizingCol(null);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [columnWidths]);
+
+  const handleResetWidths = () => {
+    setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+    try {
+      localStorage.removeItem('solid_col_widths');
+    } catch {
+      // ignore
+    }
+  };
 
   const handleCopyUrl = (e: React.MouseEvent, id: string, url: string) => {
     e.preventDefault();
@@ -554,14 +657,14 @@ export default function NotebookList({
                     <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
                       <Folder size={14} className="text-text-normal group-hover:text-text-bright shrink-0 transition-colors" />
                       <span 
-                        className="font-semibold text-text-bright truncate"
+                        className="font-bold text-text-bright truncate"
                         style={{ fontSize: `${listFontSize}px` }}
                       >
                         {sub.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[9px] font-mono text-text-dim group-hover:text-text-bright px-1.5 py-0.5 bg-base-bg border border-border-main/60">
+                      <span className="text-[9px] font-mono text-text-bright font-bold px-1.5 py-0.5 bg-base-bg border border-border-main/60">
                         {count}
                       </span>
                       {onDeleteCategory && (
@@ -619,8 +722,8 @@ export default function NotebookList({
                     onClick={() => onLinkOpenModeChange?.('window')}
                     className={`px-2 py-1 transition-colors cursor-pointer ${
                       linkOpenMode === 'window' 
-                        ? 'bg-border-light text-text-bright' 
-                        : 'text-text-dim hover:text-text-normal'
+                        ? 'bg-border-light text-white font-bold' 
+                        : 'text-text-dim hover:text-text-bright'
                     }`}
                     title={language === 'JP' ? '独立した新しい別ウィンドウで開く（おすすめ）' : 'Open in a standalone new window'}
                   >
@@ -631,8 +734,8 @@ export default function NotebookList({
                     onClick={() => onLinkOpenModeChange?.('tab')}
                     className={`px-2 py-1 transition-colors cursor-pointer ${
                       linkOpenMode === 'tab' 
-                        ? 'bg-border-light text-text-bright' 
-                        : 'text-text-dim hover:text-text-normal'
+                        ? 'bg-border-light text-white font-bold' 
+                        : 'text-text-dim hover:text-text-bright'
                     }`}
                     title={language === 'JP' ? 'ブラウザの新しいタブで開く' : 'Open in a new browser tab'}
                   >
@@ -816,34 +919,51 @@ export default function NotebookList({
                 </div>
               )}
 
-              {/* リスト表示 / カード表示 切り替えトグル（K-Navigator風） */}
-              <div className="flex items-center border border-border-main bg-base-bg overflow-hidden leading-none text-[9px] font-mono font-bold ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('list')}
-                  className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer ${
-                    viewMode === 'list'
-                      ? 'bg-border-light text-text-bright'
-                      : 'text-text-dim hover:text-text-normal'
-                  }`}
-                  title={t.viewModeList}
-                >
-                  <List size={11} />
-                  <span className="hidden sm:inline">{t.viewModeList}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer ${
-                    viewMode === 'grid'
-                      ? 'bg-border-light text-text-bright'
-                      : 'text-text-dim hover:text-text-normal'
-                  }`}
-                  title={t.viewModeGrid}
-                >
-                  <LayoutGrid size={11} />
-                  <span className="hidden sm:inline">{t.viewModeGrid}</span>
-                </button>
+              {/* リスト表示コントロール (Reset Widths & 表示切替) */}
+              <div className="flex items-center gap-2 ml-auto">
+                {viewMode === 'list' && (
+                  <button
+                    type="button"
+                    onClick={handleResetWidths}
+                    className="flex items-center gap-1 px-2 py-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light transition-colors text-[9px] font-mono font-bold cursor-pointer"
+                    title={language === 'JP' ? '列の幅を初期状態に戻す' : 'Reset column widths to default'}
+                  >
+                    <RotateCcw size={10} className="shrink-0" />
+                    <span>{t.resetWidths}</span>
+                  </button>
+                )}
+
+                {/* カード / リスト 切り替えトグル（内側にカード、外側にリスト） */}
+                <div className="flex items-center border border-border-main bg-base-bg overflow-hidden leading-none text-[9px] font-mono font-bold">
+                  {/* カード（内側） */}
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer border-r border-border-main/40 ${
+                      viewMode === 'grid'
+                        ? 'bg-border-light text-white font-bold'
+                        : 'text-text-dim hover:text-text-bright'
+                    }`}
+                    title={t.viewModeGrid}
+                  >
+                    <LayoutGrid size={11} />
+                    <span className="hidden sm:inline">{t.viewModeGrid}</span>
+                  </button>
+                  {/* リスト（外側・右端） */}
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer ${
+                      viewMode === 'list'
+                        ? 'bg-border-light text-white font-bold'
+                        : 'text-text-dim hover:text-text-bright'
+                    }`}
+                    title={t.viewModeList}
+                  >
+                    <List size={11} />
+                    <span className="hidden sm:inline">{t.viewModeList}</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -862,19 +982,6 @@ export default function NotebookList({
             />
           )}
           
-          {/* テーブル列ヘッダー（リスト表示時のみ） */}
-          {viewMode === 'list' && (
-            <div className="flex items-center text-[10px] font-bold text-text-dim border-b border-border-main pb-2 mb-1 px-2 shrink-0 tracking-wider">
-              <span className="w-5 shrink-0" title="並び替え用ドラッグハンドル"></span>
-              <span className="w-8 shrink-0"></span>
-              <span className="flex-[2] min-w-[200px]">{t.nodeTitle}</span>
-              <span className="flex-1 min-w-[120px] hidden md:block">{t.source}</span>
-              <span className="w-28 text-right hidden sm:block">{t.timestamp}</span>
-              <span className="w-36 text-right hidden lg:block">{t.directory}</span>
-              <span className="w-16 text-right">{t.role}</span>
-            </div>
-          )}
-
           {/* ブックマークリスト */}
           {filteredNotebooks.length === 0 ? (
             <div className="py-12 flex flex-col items-center justify-center text-text-dim/60 text-[10px] gap-2">
@@ -888,8 +995,86 @@ export default function NotebookList({
               )}
             </div>
           ) : viewMode === 'list' ? (
-            <div className="flex flex-col pb-4">
-              {displayedNotebooks.map((nb) => {
+            <div className="flex flex-col pb-4 w-full">
+              <div className="w-full flex flex-col">
+                {/* テーブル列ヘッダー */}
+                <div className="w-full flex items-center text-[10px] font-bold text-text-dim border-b border-border-main pb-2 px-2 shrink-0 tracking-wider select-none gap-2 sm:gap-3">
+                  <span className="w-5 shrink-0" title="並び替え用ドラッグハンドル"></span>
+                  <span className="w-8 shrink-0"></span>
+
+                  {/* ノードタイトル */}
+                  <div className="flex-1 min-w-[140px] relative flex items-center pr-3">
+                    <span className="truncate">{t.nodeTitle}</span>
+                    {/* リサイズ仕切り線 */}
+                    <div 
+                      onMouseDown={(e) => startResizing('title', e)}
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex justify-center items-center group/resizer z-20"
+                      title={language === 'JP' ? 'ドラッグして列幅を変更' : 'Drag to resize column'}
+                    >
+                      <div className={`w-[1px] h-3.5 transition-colors ${
+                        activeResizingCol === 'title' ? 'bg-text-bright w-[2px]' : 'bg-border-main group-hover/resizer:bg-text-bright group-hover/resizer:w-[2px]'
+                      }`} />
+                    </div>
+                  </div>
+
+                  {/* ソース */}
+                  <div 
+                    style={{ width: `${columnWidths.source}px` }} 
+                    className="shrink-0 relative hidden md:flex items-center px-2 pr-3"
+                  >
+                    <span className="truncate">{t.source}</span>
+                    <div 
+                      onMouseDown={(e) => startResizing('source', e)}
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex justify-center items-center group/resizer z-20"
+                      title={language === 'JP' ? 'ドラッグして列幅を変更' : 'Drag to resize column'}
+                    >
+                      <div className={`w-[1px] h-3.5 transition-colors ${
+                        activeResizingCol === 'source' ? 'bg-text-bright w-[2px]' : 'bg-border-main group-hover/resizer:bg-text-bright group-hover/resizer:w-[2px]'
+                      }`} />
+                    </div>
+                  </div>
+
+                  {/* タイムスタンプ */}
+                  <div 
+                    style={{ width: `${columnWidths.timestamp}px` }} 
+                    className="shrink-0 relative hidden sm:flex items-center justify-end px-2 pr-3"
+                  >
+                    <span className="truncate">{t.timestamp}</span>
+                    <div 
+                      onMouseDown={(e) => startResizing('timestamp', e)}
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex justify-center items-center group/resizer z-20"
+                      title={language === 'JP' ? 'ドラッグして列幅を変更' : 'Drag to resize column'}
+                    >
+                      <div className={`w-[1px] h-3.5 transition-colors ${
+                        activeResizingCol === 'timestamp' ? 'bg-text-bright w-[2px]' : 'bg-border-main group-hover/resizer:bg-text-bright group-hover/resizer:w-[2px]'
+                      }`} />
+                    </div>
+                  </div>
+
+                  {/* ディレクトリ */}
+                  <div 
+                    style={{ width: `${columnWidths.directory}px` }} 
+                    className="shrink-0 relative hidden lg:flex items-center justify-end px-2 pr-3"
+                  >
+                    <span className="truncate">{t.directory}</span>
+                    <div 
+                      onMouseDown={(e) => startResizing('directory', e)}
+                      className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex justify-center items-center group/resizer z-20"
+                      title={language === 'JP' ? 'ドラッグして列幅を変更' : 'Drag to resize column'}
+                    >
+                      <div className={`w-[1px] h-3.5 transition-colors ${
+                        activeResizingCol === 'directory' ? 'bg-text-bright w-[2px]' : 'bg-border-main group-hover/resizer:bg-text-bright group-hover/resizer:w-[2px]'
+                      }`} />
+                    </div>
+                  </div>
+
+                  {/* 権限 / 操作（右端にピッタリ固定） */}
+                  <div className="w-20 shrink-0 relative flex items-center justify-end pr-1">
+                    <span className="truncate">{t.role}</span>
+                  </div>
+                </div>
+
+                {displayedNotebooks.map((nb) => {
                 const host = getHostname(nb.url);
                 const isDragging = draggingId === nb.id;
                 const isDragOver = dragOverId === nb.id;
@@ -903,7 +1088,7 @@ export default function NotebookList({
                     onDragLeave={(e) => handleDragLeave(e, nb.id)}
                     onDrop={(e) => handleDrop(e, nb.id)}
                     onDragEnd={handleDragEnd}
-                    className={`flex items-center py-2.5 px-2 border-b border-border-main/50 hover:bg-border-main/20 group transition-all gap-2 sm:gap-3 ${
+                    className={`w-full flex items-center py-2.5 px-2 border-b border-border-main/50 hover:bg-border-main/20 group transition-all gap-2 sm:gap-3 ${
                       selectedIds.has(nb.id) ? 'bg-border-main/15' : ''
                     } ${isDragging ? 'opacity-40 bg-border-main/30 border-dashed border-border-light' : ''} ${
                       isDragOver ? 'border-t-2 border-t-text-bright bg-border-main/25' : ''
@@ -1002,19 +1187,19 @@ export default function NotebookList({
                       </div>
                     ) : (
                       <>
-                        {/* ノードタイトル・リンク */}
-                        <div className="flex-[2] min-w-[200px] flex items-center gap-3 overflow-hidden">
-                          <div className="w-7 h-7 flex items-center justify-center bg-base-bg text-text-normal shrink-0 border border-border-main/50 group-hover:border-border-light transition-colors">
-                            <FileText size={13} />
+                        {/* ノードタイトル・リンク（残り幅をすべて使い、ブラウザ枠まで広がる） */}
+                        <div className="flex-1 min-w-[140px] flex items-center gap-2.5 overflow-hidden pr-3">
+                          <div className="w-6 h-6 flex items-center justify-center bg-base-bg text-text-normal shrink-0 border border-border-main/50 group-hover:border-border-light transition-colors">
+                            <FileText size={12} />
                           </div>
-                          <div className="flex items-center gap-2 overflow-hidden flex-1 group/edit">
+                          <div className="flex items-center gap-1.5 overflow-hidden flex-1 group/edit min-w-0">
                             <a 
                               href={nb.url}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => handleOpenLink(e, nb.url)}
                               style={{ fontSize: `${linkFontSize}px` }}
-                              className="text-text-bright hover:underline truncate font-medium transition-colors cursor-pointer"
+                              className="text-text-bright hover:underline truncate font-bold transition-colors cursor-pointer"
                               title={
                                 linkOpenMode === 'window'
                                   ? (language === 'JP' ? `${nb.title} (新しい別ウィンドウで開く)` : `${nb.title} (Open in new window)`)
@@ -1030,14 +1215,14 @@ export default function NotebookList({
                                 e.stopPropagation();
                                 openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
                               }}
-                              className="text-text-dim/60 hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
+                              className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
                               title={language === 'JP' ? '常に独立ウィンドウで開く' : 'Open in standalone window'}
                             >
                               <AppWindow size={11} />
                             </button>
                             <button 
                                 onClick={(e) => startEdit(e, nb)}
-                                className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 shrink-0"
+                                className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 shrink-0 cursor-pointer"
                                 title="Edit Title"
                             >
                                 <Pencil size={11} />
@@ -1045,25 +1230,37 @@ export default function NotebookList({
                           </div>
                         </div>
 
-                        <div className="flex-1 min-w-[120px] hidden md:flex items-center gap-2 text-[10px] text-text-dim truncate font-mono">
-                           <Database size={10} className="shrink-0" />
-                           <span className="truncate">{host}</span>
+                        {/* ソース */}
+                        <div 
+                          style={{ width: `${columnWidths.source}px` }} 
+                          className="shrink-0 hidden md:flex items-center gap-1.5 text-[10px] text-text-dim truncate font-mono px-2"
+                          title={host}
+                        >
+                          <Database size={10} className="shrink-0 text-text-dim" />
+                          <span className="truncate">{host}</span>
                         </div>
 
-                        <div className="w-28 text-right text-text-dim text-[10px] shrink-0 hidden sm:block font-mono">
+                        {/* タイムスタンプ */}
+                        <div 
+                          style={{ width: `${columnWidths.timestamp}px` }} 
+                          className="shrink-0 hidden sm:block text-right text-text-dim text-[10px] font-mono px-2 truncate"
+                        >
                           {formatDate(nb.createdAt)}
                         </div>
 
+                        {/* ディレクトリ */}
                         <div 
-                          className="w-36 text-right text-text-dim text-[10px] shrink-0 hidden lg:block truncate pl-4"
+                          style={{ width: `${columnWidths.directory}px` }} 
+                          className="shrink-0 hidden lg:block text-right text-text-dim text-[10px] truncate px-2"
                           title={getCategoryName(nb.categoryId)}
                         >
-                          <span className="hover:text-text-normal">
+                          <span className="hover:text-text-normal truncate block">
                             {getCategoryShortName(nb.categoryId)}
                           </span>
                         </div>
 
-                        <div className="w-24 flex items-center justify-end gap-1 text-text-dim text-[10px] shrink-0 font-bold">
+                        {/* 権限 / 操作（ブラウザ右端枠にピッタリ固定） */}
+                        <div className="w-20 shrink-0 flex items-center justify-end gap-1 text-text-dim text-[10px] font-bold pr-1">
                           <span className="hidden sm:inline opacity-60 mr-1">{t.owner}</span>
                           <button
                             type="button"
@@ -1090,6 +1287,7 @@ export default function NotebookList({
                   </div>
                 );
               })}
+              </div>
 
               {/* さらに読み込むボタン & 表示件数サマリー */}
               {visibleCount < filteredNotebooks.length && (
@@ -1167,9 +1365,9 @@ export default function NotebookList({
                               {isSelected ? <CheckSquare size={13} className="text-text-bright" /> : <Square size={13} />}
                             </button>
 
-                            {/* ドメイン/ホスト名バッジ（白黒反転風のソリッドバッジ） */}
+                            {/* ドメイン/ホスト名バッジ */}
                             <div 
-                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[140px]"
+                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[150px] shadow-xs"
                               title={host}
                             >
                               <img 
@@ -1178,7 +1376,7 @@ export default function NotebookList({
                                 className="w-3.5 h-3.5 shrink-0 object-contain"
                                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
                               />
-                              <span className="truncate">{host}</span>
+                              <span className="truncate text-text-bright">{host}</span>
                             </div>
                           </div>
 
@@ -1280,7 +1478,7 @@ export default function NotebookList({
                               <select
                                 value={editCategoryId}
                                 onChange={(e) => setEditCategoryId(e.target.value)}
-                                className="w-full bg-base-bg border border-border-main text-text-bright text-[10px] px-1.5 py-1 outline-none font-mono truncate"
+                                className="w-full bg-base-bg border border-border-main text-text-bright text-[10px] px-1.5 py-1 outline-none font-mono truncate font-bold"
                               >
                                 <option value="">{t.unassigned}</option>
                                 {categories.map(c => (
@@ -1293,7 +1491,7 @@ export default function NotebookList({
                               <button
                                 type="button"
                                 onClick={() => saveEdit(nb.id)}
-                                className="bg-border-light text-text-bright px-2.5 py-1 text-[10px] font-mono font-bold hover:bg-white hover:text-black transition-colors cursor-pointer"
+                                className="bg-border-light text-white px-2.5 py-1 text-[10px] font-mono font-bold hover:bg-white hover:text-black transition-colors cursor-pointer"
                               >
                                 {t.save}
                               </button>
@@ -1318,7 +1516,7 @@ export default function NotebookList({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{ fontSize: `${linkFontSize}px` }}
-                                className="font-bold text-text-bright hover:text-white hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
+                                className="font-bold text-text-bright hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
                                 title={nb.title}
                               >
                                 {nb.title}
@@ -1328,9 +1526,9 @@ export default function NotebookList({
                             {/* 詳細メタ情報（URL & 所属フォルダ） */}
                             <div className="flex flex-col gap-1.5 mb-4 text-[10px] font-mono text-text-dim">
                               {/* URL表示 */}
-                              <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={nb.url}>
-                                <Globe size={11} className="shrink-0 text-text-dim/60" />
-                                <span className="truncate text-[10px] select-all">{nb.url}</span>
+                              <div className="flex items-center gap-1.5 text-text-bright truncate" title={nb.url}>
+                                <Globe size={11} className="shrink-0 text-text-dim" />
+                                <span className="truncate text-[10px] select-all font-medium text-text-bright">{nb.url}</span>
                               </div>
 
                               {/* 所属フォルダ */}
@@ -1352,7 +1550,7 @@ export default function NotebookList({
                           type="button"
                           onClick={(e) => handleOpenLink(e as any, nb.url)}
                           onDragStart={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1 text-text-dim hover:text-text-bright font-mono font-bold text-[10px] tracking-wider transition-colors cursor-pointer group-hover/card:text-text-bright"
+                          className="flex items-center gap-1 text-text-bright hover:underline font-mono font-bold text-[10px] tracking-wider transition-colors cursor-pointer"
                           title={language === 'JP' ? 'リンクを開く' : 'Open Link'}
                         >
                           <span>{t.openLinkBtn}</span>

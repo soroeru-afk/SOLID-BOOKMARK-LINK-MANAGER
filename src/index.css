@@ -4,6 +4,7 @@
 @theme {
   --color-base-bg: var(--theme-base-bg);
   --color-panel-bg: var(--theme-panel-bg);
+  --color-input-bg: var(--theme-input-bg);
   --color-border-main: var(--theme-border-main);
   --color-border-light: var(--theme-border-light);
   --color-text-dim: var(--theme-text-dim);
@@ -18,13 +19,14 @@
 :root {
   --theme-base-bg: #e2e8f0;
   --theme-panel-bg: #f8fafc;
+  --theme-input-bg: #ffffff;
   --theme-border-main: #b4c2d3;
   --theme-border-light: #64748b;
   --theme-text-dim: #475569;
   --theme-text-normal: #1e293b;
   --theme-text-bright: #090d16;
-  --theme-accent-bg: #1e293b;
-  --theme-accent-text: #f8fafc;
+  --theme-accent-bg: #cbd5e1;
+  --theme-accent-text: #090d16;
 
   --app-font: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
@@ -53,37 +55,41 @@
 [data-theme="dark"] {
   --theme-base-bg: #090f19;
   --theme-panel-bg: #101a2b;
+  --theme-input-bg: #0b1424;
   --theme-border-main: #1d304a;
   --theme-border-light: #2d486e;
   --theme-text-dim: #5c7ca5;
   --theme-text-normal: #8eaecf;
-  --theme-text-bright: #c8dcf2;
+  --theme-text-bright: #ffffff;
   --theme-accent-bg: #1c2e47;
-  --theme-accent-text: #c8dcf2;
+  --theme-accent-text: #ffffff;
 }
 
 [data-theme="black"] {
   --theme-base-bg: #0c0d0e;
   --theme-panel-bg: #141619;
+  --theme-input-bg: #181b20;
   --theme-border-main: #25282e;
   --theme-border-light: #3f444e;
   --theme-text-dim: #7b8290;
   --theme-text-normal: #c4cbd6;
-  --theme-text-bright: #f6f8fb;
+  --theme-text-bright: #ffffff;
   --theme-accent-bg: #272a31;
   --theme-accent-text: #ffffff;
 }
 
 [data-theme="red"] {
-  --theme-base-bg: #0d0606;
-  --theme-panel-bg: #170b0b;
-  --theme-border-main: #3a1515;
-  --theme-border-light: #612222;
-  --theme-text-dim: #b05a5a;
-  --theme-text-normal: #f09696;
-  --theme-text-bright: #ffc4c4;
-  --theme-accent-bg: #421515;
-  --theme-accent-text: #ffe0e0;
+  /* K-Navigator CRIMSON RED パレット */
+  --theme-base-bg: #090203;
+  --theme-panel-bg: #110406;
+  --theme-input-bg: #180608;
+  --theme-border-main: #2f0c10;
+  --theme-border-light: #52151c;
+  --theme-text-dim: #a83d47;
+  --theme-text-normal: #ff7b87;
+  --theme-text-bright: #ffffff;
+  --theme-accent-bg: #3d0d12;
+  --theme-accent-text: #ffffff;
 }
 
 body {
