@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check } from 'lucide-react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
 import { openLink, LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from '../utils/windowOpener';
+
+export type ViewMode = 'list' | 'grid';
 
 interface Props {
   notebooks: Notebook[];
@@ -62,6 +64,28 @@ export default function NotebookList({
   const [customWInput, setCustomWInput] = useState(() => String(customDimensions.width));
   const [customHInput, setCustomHInput] = useState(() => String(customDimensions.height));
   const [isSaveNoticeVisible, setIsSaveNoticeVisible] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // ビューモード（リスト表示 / カード表示）
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem('bookmark_view_mode');
+    return (saved === 'grid' || saved === 'list') ? saved : 'list';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('bookmark_view_mode', viewMode);
+  }, [viewMode]);
+
+  const handleCopyUrl = (e: React.MouseEvent, id: string, url: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 1800);
+      });
+    }
+  };
 
   // customDimensionsが変更されたときにインプット数値を同期
   useEffect(() => {
@@ -346,6 +370,10 @@ export default function NotebookList({
     if (editTitle.trim()) {
       onUpdate(id, { title: editTitle.trim() });
     }
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => {
     setEditingId(null);
   };
 
@@ -775,6 +803,36 @@ export default function NotebookList({
                    )}
                 </div>
               )}
+
+              {/* リスト表示 / カード表示 切り替えトグル（K-Navigator風） */}
+              <div className="flex items-center border border-border-main bg-base-bg overflow-hidden leading-none text-[9px] font-mono font-bold ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-border-light text-text-bright'
+                      : 'text-text-dim hover:text-text-normal'
+                  }`}
+                  title={t.viewModeList}
+                >
+                  <List size={11} />
+                  <span className="hidden sm:inline">{t.viewModeList}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-1 px-2 py-1 transition-colors cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-border-light text-text-bright'
+                      : 'text-text-dim hover:text-text-normal'
+                  }`}
+                  title={t.viewModeGrid}
+                >
+                  <LayoutGrid size={11} />
+                  <span className="hidden sm:inline">{t.viewModeGrid}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -792,16 +850,18 @@ export default function NotebookList({
             />
           )}
           
-          {/* テーブル列ヘッダー */}
-          <div className="flex items-center text-[10px] font-bold text-text-dim border-b border-border-main pb-2 mb-1 px-2 shrink-0 tracking-wider">
-            <span className="w-5 shrink-0" title="並び替え用ドラッグハンドル"></span>
-            <span className="w-8 shrink-0"></span>
-            <span className="flex-[2] min-w-[200px]">{t.nodeTitle}</span>
-            <span className="flex-1 min-w-[120px] hidden md:block">{t.source}</span>
-            <span className="w-28 text-right hidden sm:block">{t.timestamp}</span>
-            <span className="w-36 text-right hidden lg:block">{t.directory}</span>
-            <span className="w-16 text-right">{t.role}</span>
-          </div>
+          {/* テーブル列ヘッダー（リスト表示時のみ） */}
+          {viewMode === 'list' && (
+            <div className="flex items-center text-[10px] font-bold text-text-dim border-b border-border-main pb-2 mb-1 px-2 shrink-0 tracking-wider">
+              <span className="w-5 shrink-0" title="並び替え用ドラッグハンドル"></span>
+              <span className="w-8 shrink-0"></span>
+              <span className="flex-[2] min-w-[200px]">{t.nodeTitle}</span>
+              <span className="flex-1 min-w-[120px] hidden md:block">{t.source}</span>
+              <span className="w-28 text-right hidden sm:block">{t.timestamp}</span>
+              <span className="w-36 text-right hidden lg:block">{t.directory}</span>
+              <span className="w-16 text-right">{t.role}</span>
+            </div>
+          )}
 
           {/* ブックマークリスト */}
           {filteredNotebooks.length === 0 ? (
@@ -815,7 +875,7 @@ export default function NotebookList({
                 <span>{notebooks.length === 0 ? t.awaitingInit : 'NO MATCHING RESULTS'}</span>
               )}
             </div>
-          ) : (
+          ) : viewMode === 'list' ? (
             <div className="flex flex-col pb-4">
               {displayedNotebooks.map((nb) => {
                 const host = getHostname(nb.url);
@@ -963,6 +1023,208 @@ export default function NotebookList({
                   </div>
                 );
               })}
+
+              {/* さらに読み込むボタン & 表示件数サマリー */}
+              {visibleCount < filteredNotebooks.length && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-3 mt-3 bg-panel-bg border border-border-main text-[11px]">
+                  <span className="text-text-dim font-mono">
+                    {t.showingCount}: <strong className="text-text-bright font-bold">{displayedNotebooks.length}</strong> / {filteredNotebooks.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount(prev => Math.min(prev + 100, filteredNotebooks.length))}
+                    className="px-4 py-1.5 bg-border-main hover:bg-border-light text-text-bright font-bold tracking-wider transition-colors cursor-pointer text-[10px]"
+                  >
+                    {t.loadMore}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* カード型表示（K-Navigatorスタイルのカードグリッド） */
+            <div className="flex flex-col pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 pt-1">
+                {displayedNotebooks.map((nb) => {
+                  const host = getHostname(nb.url);
+                  const isSelected = selectedIds.has(nb.id);
+                  const isEditing = editingId === nb.id;
+                  const catName = getCategoryName(nb.categoryId);
+                  const isCopied = copiedId === nb.id;
+
+                  return (
+                    <div
+                      key={nb.id}
+                      className={`bg-base-bg border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none ${
+                        isSelected 
+                          ? 'border-border-light bg-border-main/20 ring-1 ring-border-light shadow-md' 
+                          : 'border-border-main hover:border-border-light hover:bg-border-main/10'
+                      }`}
+                    >
+                      {/* 上部ヘッダー: チェックボックス + ドメインバッジ + アクションボタン群 */}
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {/* 選択チェックボックス */}
+                            <button
+                              type="button"
+                              onClick={(e) => toggleSelect(nb.id, e)}
+                              className="text-text-dim hover:text-text-bright transition-colors cursor-pointer shrink-0"
+                              title={isSelected ? "Deselect" : "Select"}
+                            >
+                              {isSelected ? <CheckSquare size={13} className="text-text-bright" /> : <Square size={13} />}
+                            </button>
+
+                            {/* ドメイン/ホスト名バッジ（白黒反転風のソリッドバッジ） */}
+                            <div 
+                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[150px]"
+                              title={host}
+                            >
+                              <img 
+                                src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`} 
+                                alt="" 
+                                className="w-3.5 h-3.5 shrink-0 object-contain"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                              <span className="truncate">{host}</span>
+                            </div>
+                          </div>
+
+                          {/* アクションボタングループ */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {/* 独立ウィンドウで開く */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
+                              }}
+                              className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
+                              title={language === 'JP' ? '独立ウィンドウで開く' : 'Open in standalone window'}
+                            >
+                              <AppWindow size={12} />
+                            </button>
+
+                            {/* URLコピー */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyUrl(e, nb.id, nb.url)}
+                              className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
+                              title={isCopied ? t.copied : t.copyUrl}
+                            >
+                              {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            </button>
+
+                            {/* 編集 */}
+                            <button
+                              type="button"
+                              onClick={(e) => startEdit(e, nb)}
+                              className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
+                              title={t.edit}
+                            >
+                              <Pencil size={12} />
+                            </button>
+
+                            {/* 削除 */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleRowDeleteClick(e, nb.id)}
+                              className={`p-1 transition-all rounded-xs cursor-pointer ${
+                                confirmRowDeleteId === nb.id
+                                  ? 'bg-red-900/60 text-red-200 border border-red-500 animate-pulse px-1.5'
+                                  : 'text-text-dim hover:text-red-400 hover:bg-red-950/20'
+                              }`}
+                              title={confirmRowDeleteId === nb.id ? t.confirmDeleteRow : t.delete}
+                            >
+                              {confirmRowDeleteId === nb.id ? (
+                                <span className="flex items-center gap-0.5 text-[9px] text-red-200 font-mono font-bold">
+                                  <Trash2 size={11} className="shrink-0" />
+                                  <span>{t.confirmDeleteRow}</span>
+                                </span>
+                              ) : (
+                                <Trash2 size={12} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* タイトルエリア */}
+                        <div className="mb-3">
+                          {isEditing ? (
+                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                className="flex-1 bg-input-bg border border-border-light text-text-bright px-2 py-1 text-[13px] font-bold outline-none font-sans"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEdit(nb.id);
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                              />
+                              <button
+                                onClick={() => saveEdit(nb.id)}
+                                className="bg-border-light text-text-bright px-2 py-1 text-[10px] font-mono font-bold hover:bg-white hover:text-black transition-colors shrink-0"
+                              >
+                                SAVE
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="border border-border-main text-text-dim hover:text-text-bright px-2 py-1 text-[10px] font-mono shrink-0"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <a
+                              href={nb.url}
+                              onClick={(e) => handleOpenLink(e, nb.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: `${linkFontSize}px` }}
+                              className="font-bold text-text-bright hover:text-white hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
+                              title={nb.title}
+                            >
+                              {nb.title}
+                            </a>
+                          )}
+                        </div>
+
+                        {/* 詳細メタ情報（URL & 所属フォルダ） */}
+                        <div className="flex flex-col gap-1.5 mb-4 text-[10px] font-mono text-text-dim">
+                          {/* URL表示 */}
+                          <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={nb.url}>
+                            <Globe size={11} className="shrink-0 text-text-dim/60" />
+                            <span className="truncate text-[10px] select-all">{nb.url}</span>
+                          </div>
+
+                          {/* 所属フォルダ */}
+                          <div className="flex items-center gap-1.5 text-text-dim/80 truncate" title={catName}>
+                            <Folder size={11} className="shrink-0 text-text-dim/60" />
+                            <span className="truncate text-[10px]">{catName}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* フッター行: 日付 + OPEN → ボタン (K-Navigatorスタイル) */}
+                      <div className="pt-2.5 border-t border-border-main/50 flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-text-dim text-[9px]">{formatDate(nb.createdAt)}</span>
+
+                        {/* OPEN → ボタン */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenLink(e as any, nb.url)}
+                          className="flex items-center gap-1 text-text-dim hover:text-text-bright font-mono font-bold text-[10px] tracking-wider transition-colors cursor-pointer group-hover/card:text-text-bright"
+                          title={language === 'JP' ? 'リンクを開く' : 'Open Link'}
+                        >
+                          <span>{t.openLinkBtn}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* さらに読み込むボタン & 表示件数サマリー */}
               {visibleCount < filteredNotebooks.length && (

@@ -44,9 +44,9 @@ export function openLink(url: string, options: WindowOpenOptions = {}): void {
       targetH = 1020;
       break;
     case 'fhd':
-      // カオルさまご指定: 超特大 1920 × 1160
+      // カオルさまご指定: 超特大 1920 × 1100
       targetW = 1920;
-      targetH = 1160;
+      targetH = 1100;
       break;
     case 'max':
       // 画面最大化

@@ -399,7 +399,9 @@ export default function Sidebar({
             className="mr-1.5 shrink-0 cursor-pointer"
             onClick={() => {
               onSelectCategory(node.id);
-              if (hasChildren) setExpandedIds(prev => new Set(prev).add(node.id));
+              if (hasChildren) {
+                toggleExpand(node.id);
+              }
             }}
           >
             {isExpanded && hasChildren ? (
@@ -429,7 +431,9 @@ export default function Sidebar({
               type="button"
               onClick={() => {
                 onSelectCategory(node.id);
-                if (hasChildren) setExpandedIds(prev => new Set(prev).add(node.id));
+                if (hasChildren) {
+                  toggleExpand(node.id);
+                }
               }}
               style={{ fontSize: `${listFontSize}px` }}
               className="min-w-0 flex-1 text-left truncate cursor-pointer font-medium tracking-wide text-text-normal group-hover/cat:text-text-bright"

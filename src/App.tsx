@@ -117,18 +117,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
-
-    // PWA モバイル・ブラウザバー用の theme-color 動的更新
-    const themeColors: Record<Theme, string> = {
-      black: '#0c0d0e',
-      red: '#0d0606',
-      dark: '#090f19',
-      light: '#e2e8f0',
-    };
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', themeColors[theme] || '#0c0d0e');
-    }
   }, [theme]);
 
   useEffect(() => {
