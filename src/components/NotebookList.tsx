@@ -1051,23 +1051,49 @@ export default function NotebookList({
                   const catName = getCategoryName(nb.categoryId);
                   const isCopied = copiedId === nb.id;
 
+                  const isDragging = draggingId === nb.id;
+                  const isDragOver = dragOverId === nb.id;
+
                   return (
                     <div
                       key={nb.id}
+                      draggable={!editingId}
+                      onDragStart={(e) => handleDragStart(e, nb.id)}
+                      onDragOver={(e) => handleDragOver(e, nb.id)}
+                      onDragLeave={(e) => handleDragLeave(e, nb.id)}
+                      onDrop={(e) => handleDrop(e, nb.id)}
+                      onDragEnd={handleDragEnd}
                       className={`bg-base-bg border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none ${
                         isSelected 
                           ? 'border-border-light bg-border-main/20 ring-1 ring-border-light shadow-md' 
                           : 'border-border-main hover:border-border-light hover:bg-border-main/10'
+                      } ${
+                        isDragging ? 'opacity-40 bg-border-main/30 border-dashed border-border-light' : ''
+                      } ${
+                        isDragOver ? 'ring-2 ring-text-bright border-text-bright bg-border-main/30 scale-[1.01]' : ''
                       }`}
                     >
-                      {/* 上部ヘッダー: チェックボックス + ドメインバッジ + アクションボタン群 */}
+                      {/* 上部ヘッダー: ドラッグハンドル + チェックボックス + ドメインバッジ + アクションボタン群 */}
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {/* ドラッグハンドル */}
+                            <div
+                              className="p-1 -ml-1 text-text-dim/40 hover:text-text-bright group-hover/card:text-text-dim transition-colors cursor-grab active:cursor-grabbing shrink-0"
+                              title={language === 'JP' ? 'ドラッグして並び替え' : 'Drag to reorder'}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <GripVertical size={13} />
+                            </div>
+
                             {/* 選択チェックボックス */}
                             <button
                               type="button"
-                              onClick={(e) => toggleSelect(nb.id, e)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSelect(nb.id, e);
+                              }}
+                              onDragStart={(e) => e.stopPropagation()}
                               className="text-text-dim hover:text-text-bright transition-colors cursor-pointer shrink-0"
                               title={isSelected ? "Deselect" : "Select"}
                             >
@@ -1076,7 +1102,7 @@ export default function NotebookList({
 
                             {/* ドメイン/ホスト名バッジ（白黒反転風のソリッドバッジ） */}
                             <div 
-                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[150px]"
+                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[140px]"
                               title={host}
                             >
                               <img 
@@ -1090,7 +1116,7 @@ export default function NotebookList({
                           </div>
 
                           {/* アクションボタングループ */}
-                          <div className="flex items-center gap-0.5 shrink-0">
+                          <div className="flex items-center gap-0.5 shrink-0" onDragStart={(e) => e.stopPropagation()}>
                             {/* 独立ウィンドウで開く */}
                             <button
                               type="button"
@@ -1180,6 +1206,8 @@ export default function NotebookList({
                             <a
                               href={nb.url}
                               onClick={(e) => handleOpenLink(e, nb.url)}
+                              draggable={false}
+                              onDragStart={(e) => e.preventDefault()}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{ fontSize: `${linkFontSize}px` }}
@@ -1215,6 +1243,7 @@ export default function NotebookList({
                         <button
                           type="button"
                           onClick={(e) => handleOpenLink(e as any, nb.url)}
+                          onDragStart={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-text-dim hover:text-text-bright font-mono font-bold text-[10px] tracking-wider transition-colors cursor-pointer group-hover/card:text-text-bright"
                           title={language === 'JP' ? 'リンクを開く' : 'Open Link'}
                         >
