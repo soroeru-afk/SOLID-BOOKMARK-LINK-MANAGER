@@ -200,8 +200,26 @@ export default function App() {
       const rawUrl = params.get('add_url') || params.get('url');
 
       if (rawUrl) {
-        const decodedTitle = rawTitle ? decodeURIComponent(rawTitle) : 'New Bookmark';
-        const decodedUrl = decodeURIComponent(rawUrl);
+        // URLSearchParams.get() は自動的にデコードを行うため再デコードは不要（URIError防止）
+        let decodedTitle = rawTitle || 'New Bookmark';
+        let decodedUrl = rawUrl;
+
+        // 安全のために念のため文字化け対策の処理
+        try {
+          if (rawTitle && rawTitle.includes('%')) {
+            decodedTitle = decodeURIComponent(rawTitle);
+          }
+        } catch {
+          // エラーが発生した場合はそのまま rawTitle を使用
+        }
+
+        try {
+          if (rawUrl && rawUrl.includes('%')) {
+            decodedUrl = decodeURIComponent(rawUrl);
+          }
+        } catch {
+          // エラーが発生した場合はそのまま rawUrl を使用
+        }
 
         const newBookmark: Notebook = {
           id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
