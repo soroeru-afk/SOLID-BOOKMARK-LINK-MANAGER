@@ -10,6 +10,7 @@ import { CheckCircle2, X, AlertTriangle } from 'lucide-react';
 import { i18n } from './i18n';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { BookmarkletModal } from './components/BookmarkletModal';
+import { IncomingBookmarkModal } from './components/IncomingBookmarkModal';
 import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
 
 export type Theme = 'black' | 'red' | 'dark' | 'light';
@@ -192,7 +193,10 @@ export default function App() {
     localStorage.setItem('include_subfolders', String(includeSubfolders));
   }, [includeSubfolders]);
 
-  // ブックマークレット・Web Share Target等からのURLパラメータ自動検知・即時追加
+  // 1クリック保存等で外部から受取したブックマーク用の一時データ
+  const [incomingBookmark, setIncomingBookmark] = useState<{ title: string; url: string; categoryId: string } | null>(null);
+
+  // ブックマークレット・Web Share Target等からのURLパラメータ自動検知・受取ダイアログ起動
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -222,30 +226,22 @@ export default function App() {
           // エラーが発生した場合はそのまま rawUrl を使用
         }
 
-        // 保存先カテゴリーの決定（指定があれば優先、無ければアクティブカテゴリ、無ければ未割り当て）
-        let targetCategoryId = '';
+        // 保存先カテゴリーの初期値決定（指定があれば優先、無ければアクティブカテゴリ、無ければ未割り当て）
+        let defaultCategoryId = '';
         if (paramCatId) {
-          targetCategoryId = paramCatId === '__UNASSIGNED__' ? '' : paramCatId;
+          defaultCategoryId = paramCatId === '__UNASSIGNED__' ? '' : paramCatId;
         } else if (activeCategoryId && activeCategoryId !== '__UNASSIGNED__') {
-          targetCategoryId = activeCategoryId;
+          defaultCategoryId = activeCategoryId;
         }
 
-        const newBookmark: Notebook = {
-          id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+        // 受取モーダルを起動してユーザーに保存先フォルダをプルダウン選択させる
+        setIncomingBookmark({
           title: decodedTitle,
           url: decodedUrl,
-          categoryId: targetCategoryId,
-          createdAt: new Date().toISOString()
-        };
+          categoryId: defaultCategoryId
+        });
 
-        setNotebooks(prev => [newBookmark, ...prev]);
-
-        const successMsg = language === 'JP'
-          ? `【自動保存】「${decodedTitle}」を正常にストックしました！`
-          : `[Saved] Added "${decodedTitle}"!`;
-        setNotification(successMsg);
-
-        // クエリパラメータをURLから削除して重複追加を防止
+        // クエリパラメータをURLから削除して重複起動を防止
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
       }
@@ -253,6 +249,27 @@ export default function App() {
       console.error('Failed to parse URL params', e);
     }
   }, []);
+
+  const handleSaveIncomingBookmark = (finalTitle: string, finalUrl: string, finalCatId: string) => {
+    const newBookmark: Notebook = {
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+      title: finalTitle,
+      url: finalUrl,
+      categoryId: finalCatId,
+      createdAt: new Date().toISOString()
+    };
+
+    setNotebooks(prev => [newBookmark, ...prev]);
+
+    const targetCatObj = categories.find(c => c.id === finalCatId);
+    const catName = targetCatObj ? (targetCatObj.path || targetCatObj.name) : (language === 'JP' ? '未割り当て' : 'Unassigned');
+
+    const successMsg = language === 'JP'
+      ? `【保存完了】「${finalTitle}」を『${catName}』フォルダに追加しました！`
+      : `[Saved] Added "${finalTitle}" to "${catName}"!`;
+    setNotification(successMsg);
+    setIncomingBookmark(null);
+  };
 
   // 通知の自動消去
   useEffect(() => {
@@ -655,6 +672,18 @@ export default function App() {
         onClose={() => setIsBookmarkletModalOpen(false)}
         language={language}
         categories={categories}
+      />
+
+      {/* 1クリック保存受け取り＆保存先フォルダ選択モーダル */}
+      <IncomingBookmarkModal
+        isOpen={incomingBookmark !== null}
+        initialTitle={incomingBookmark?.title || ''}
+        initialUrl={incomingBookmark?.url || ''}
+        initialCategoryId={incomingBookmark?.categoryId || ''}
+        categories={categories}
+        language={language}
+        onSave={handleSaveIncomingBookmark}
+        onCancel={() => setIncomingBookmark(null)}
       />
     </div>
   );
