@@ -261,6 +261,14 @@ export default function App() {
 
     setNotebooks(prev => [newBookmark, ...prev]);
 
+    // 保存先フォルダへ即時に切り替え ＆ 検索クエリをクリアして画面上に1秒で反映させる
+    if (finalCatId) {
+      setActiveCategoryId(finalCatId);
+    } else {
+      setActiveCategoryId('__UNASSIGNED__');
+    }
+    setSearchQuery('');
+
     const targetCatObj = categories.find(c => c.id === finalCatId);
     const catName = targetCatObj ? (targetCatObj.path || targetCatObj.name) : (language === 'JP' ? '未割り当て' : 'Unassigned');
 
