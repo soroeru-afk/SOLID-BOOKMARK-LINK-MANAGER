@@ -29,11 +29,11 @@ export function BookmarkletModal({ isOpen, onClose, language, categories = [] }:
   // 送信先URLの末尾のスラッシュ正規化
   const normalizedTargetUrl = targetUrl.trim();
 
-  // カテゴリ指定パラメータ
-  const categoryParam = selectedCategoryId ? `&category_id=${encodeURIComponent(selectedCategoryId)}` : '';
+  // カテゴリ指定URLフラグメント
+  const catQueryFragment = selectedCategoryId ? `+'&category_id=${encodeURIComponent(selectedCategoryId)}'` : '';
 
-  // ブックマークレット用JavaScriptコード (ポップアップブロック回避処理付き)
-  const bookmarkletCode = `javascript:(function(){var t=encodeURIComponent(document.title),u=encodeURIComponent(location.href);var target='${normalizedTargetUrl}${normalizedTargetUrl.includes('?') ? '&' : '?'}add_title='+t+'&add_url='+u${categoryParam}';var w=window.open(target,'_blank');if(!w||w.closed||typeof w.closed=='undefined'){location.href=target;}})();`;
+  // ブックマークレット用JavaScriptコード (構文エラー修正版)
+  const bookmarkletCode = `javascript:(function(){var t=encodeURIComponent(document.title),u=encodeURIComponent(location.href);var target='${normalizedTargetUrl}${normalizedTargetUrl.includes('?') ? '&' : '?'}add_title='+t+'&add_url='+u${catQueryFragment};var w=window.open(target,'_blank');if(!w||w.closed||typeof w.closed=='undefined'){location.href=target;}})();`;
 
   const handleTargetUrlChange = (newUrl: string) => {
     setTargetUrl(newUrl);
