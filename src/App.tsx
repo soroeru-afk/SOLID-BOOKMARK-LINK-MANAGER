@@ -192,12 +192,13 @@ export default function App() {
     localStorage.setItem('include_subfolders', String(includeSubfolders));
   }, [includeSubfolders]);
 
-  // ブックマークレット等からのURLパラメータ自動検知・即時追加
+  // ブックマークレット・Web Share Target等からのURLパラメータ自動検知・即時追加
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const rawTitle = params.get('add_title') || params.get('title');
+      const rawTitle = params.get('add_title') || params.get('title') || params.get('text');
       const rawUrl = params.get('add_url') || params.get('url');
+      const paramCatId = params.get('category_id');
 
       if (rawUrl) {
         // URLSearchParams.get() は自動的にデコードを行うため再デコードは不要（URIError防止）
@@ -221,19 +222,27 @@ export default function App() {
           // エラーが発生した場合はそのまま rawUrl を使用
         }
 
+        // 保存先カテゴリーの決定（指定があれば優先、無ければアクティブカテゴリ、無ければ未割り当て）
+        let targetCategoryId = '';
+        if (paramCatId) {
+          targetCategoryId = paramCatId === '__UNASSIGNED__' ? '' : paramCatId;
+        } else if (activeCategoryId && activeCategoryId !== '__UNASSIGNED__') {
+          targetCategoryId = activeCategoryId;
+        }
+
         const newBookmark: Notebook = {
           id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
           title: decodedTitle,
           url: decodedUrl,
-          categoryId: activeCategoryId && activeCategoryId !== '__UNASSIGNED__' ? activeCategoryId : '',
+          categoryId: targetCategoryId,
           createdAt: new Date().toISOString()
         };
 
         setNotebooks(prev => [newBookmark, ...prev]);
 
         const successMsg = language === 'JP'
-          ? `【1クリック自動保存】「${decodedTitle}」を正常にストックしました！`
-          : `[1-Click Saved] Added "${decodedTitle}"!`;
+          ? `【自動保存】「${decodedTitle}」を正常にストックしました！`
+          : `[Saved] Added "${decodedTitle}"!`;
         setNotification(successMsg);
 
         // クエリパラメータをURLから削除して重複追加を防止
@@ -645,6 +654,7 @@ export default function App() {
         isOpen={isBookmarkletModalOpen}
         onClose={() => setIsBookmarkletModalOpen(false)}
         language={language}
+        categories={categories}
       />
     </div>
   );
