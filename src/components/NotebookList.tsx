@@ -36,6 +36,7 @@ interface Props {
   onDelete: (ids: string[]) => void;
   onDeleteCategory?: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Notebook>) => void;
+  onMoveNotebooks?: (notebookIds: string[], targetCategoryId: string) => void;
   onReorder?: (sourceId: string, targetId: string) => void;
   onAdd: (items: {title: string, url: string, categoryId: string}[]) => void;
   searchQuery: string;
@@ -61,6 +62,7 @@ export default function NotebookList({
   onDelete, 
   onDeleteCategory,
   onUpdate, 
+  onMoveNotebooks,
   onReorder,
   onAdd,
   searchQuery,
@@ -85,6 +87,7 @@ export default function NotebookList({
   const [customHInput, setCustomHInput] = useState(() => String(customDimensions.height));
   const [isSaveNoticeVisible, setIsSaveNoticeVisible] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [bulkMoveTargetCategory, setBulkMoveTargetCategory] = useState<string>('');
 
   // ビューモード（リスト表示 / カード表示）
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -443,6 +446,13 @@ export default function NotebookList({
     }
   };
 
+  const handleBulkMove = () => {
+    if (selectedIds.size === 0 || !bulkMoveTargetCategory) return;
+    onMoveNotebooks?.(Array.from(selectedIds), bulkMoveTargetCategory);
+    setSelectedIds(new Set());
+    setBulkMoveTargetCategory('');
+  };
+
   const handleRowDeleteClick = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -497,7 +507,10 @@ export default function NotebookList({
     e.stopPropagation();
     setDraggingId(id);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id);
+    const itemsToDrag = selectedIds.has(id) ? Array.from(selectedIds) : [id];
+    const dragPayload = JSON.stringify({ type: 'BOOKMARK_ITEMS', ids: itemsToDrag });
+    e.dataTransfer.setData('application/json', dragPayload);
+    e.dataTransfer.setData('text/plain', dragPayload);
   };
 
   const handleDragOver = (e: React.DragEvent, id: string) => {
@@ -902,6 +915,33 @@ export default function NotebookList({
                       {t.selectAll}
                    </button>
                    {selectedIds.size > 0 && (
+                     <div className="flex items-center gap-2">
+                       {/* 一括フォルダ移動 */}
+                       {onMoveNotebooks && (
+                         <div className="flex items-center gap-1 bg-input-bg border border-border-main px-1.5 py-0.5 rounded-xs">
+                           <Folder size={11} className="text-text-dim shrink-0" />
+                           <select
+                             value={bulkMoveTargetCategory}
+                             onChange={(e) => setBulkMoveTargetCategory(e.target.value)}
+                             className="bg-transparent text-text-bright text-[10px] outline-none font-mono cursor-pointer max-w-[130px] sm:max-w-[180px] truncate"
+                           >
+                             <option value="" disabled>{language === 'JP' ? '移動先フォルダ...' : 'Move to folder...'}</option>
+                             <option value="__UNASSIGNED__">{t.unassigned}</option>
+                             {categories.map(c => (
+                               <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                             ))}
+                           </select>
+                           <button
+                             type="button"
+                             onClick={handleBulkMove}
+                             disabled={!bulkMoveTargetCategory}
+                             className="bg-border-light text-white hover:bg-white hover:text-black disabled:opacity-40 disabled:hover:bg-border-light disabled:hover:text-white px-2 py-0.5 text-[9px] font-bold font-mono transition-colors cursor-pointer rounded-xs"
+                           >
+                             {language === 'JP' ? '一括移動' : 'MOVE'}
+                           </button>
+                         </div>
+                       )}
+
                        <button 
                           type="button"
                           onClick={handleBulkDeleteClick}
@@ -915,6 +955,7 @@ export default function NotebookList({
                           <Trash2 size={12} className={confirmBulkDelete ? 'animate-bounce' : ''} />
                           <span>{confirmBulkDelete ? t.confirmDeleteSelected : `${t.deleteSelected} (${selectedIds.size})`}</span>
                        </button>
+                     </div>
                    )}
                 </div>
               )}
@@ -1260,12 +1301,19 @@ export default function NotebookList({
                         </div>
 
                         {/* 権限 / 操作（ブラウザ右端枠にピッタリ固定） */}
-                        <div className="w-20 shrink-0 flex items-center justify-end gap-1 text-text-dim text-[10px] font-bold pr-1">
-                          <span className="hidden sm:inline opacity-60 mr-1">{t.owner}</span>
+                        <div className="shrink-0 flex items-center justify-end gap-1 text-text-dim text-[10px] font-bold pr-1">
+                          <button
+                            type="button"
+                            onClick={(e) => startEdit(e, nb)}
+                            className="p-1.5 transition-all border border-transparent text-text-dim hover:text-text-bright hover:border-border-light/60 hover:bg-border-main/30 cursor-pointer rounded-xs"
+                            title={t.edit || "編集"}
+                          >
+                            <Pencil size={11} />
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => handleRowDeleteClick(e, nb.id)}
-                            className={`p-1.5 transition-all border cursor-pointer ${
+                            className={`p-1.5 transition-all border cursor-pointer rounded-xs ${
                               confirmRowDeleteId === nb.id
                                 ? 'bg-red-900/60 text-red-200 border-red-500 font-bold px-2 animate-pulse'
                                 : 'border-transparent text-text-dim/50 hover:text-[#ff7b72] hover:border-red-500/30 hover:bg-red-950/20'

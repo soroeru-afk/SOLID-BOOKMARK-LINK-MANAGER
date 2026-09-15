@@ -9,6 +9,7 @@ import { parseNetscapeBookmarks } from './utils/bookmarkParser';
 import { CheckCircle2, X, AlertTriangle } from 'lucide-react';
 import { i18n } from './i18n';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { BookmarkletModal } from './components/BookmarkletModal';
 import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
 
 export type Theme = 'black' | 'red' | 'dark' | 'light';
@@ -66,6 +67,21 @@ export default function App() {
   });
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
+  const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState<boolean>(false);
+
+  // サイドバーの位置 (左 left / 右 right)
+  const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>(() => {
+    const saved = localStorage.getItem('sidebar_position');
+    return saved === 'right' ? 'right' : 'left';
+  });
+
+  const toggleSidebarPosition = () => {
+    setSidebarPosition(prev => {
+      const next = prev === 'left' ? 'right' : 'left';
+      localStorage.setItem('sidebar_position', next);
+      return next;
+    });
+  };
 
   // テキストサイズ設定 (localStorageに保存・復元)
   const [listFontSize, setListFontSize] = useState<number>(() => {
@@ -118,12 +134,12 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
-    // PWA モバイル・ブラウザバー用の theme-color 動的更新
+    // モバイルブラウザ・PWAバー用メタテーマカラー（theme-color）の動的リアルタイム同期
     const themeColors: Record<Theme, string> = {
       black: '#0c0d0e',
-      red: '#120505',
       dark: '#090f19',
-      light: '#e2e8f0',
+      red: '#0d0606',
+      light: '#e2e8f0'
     };
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -175,6 +191,41 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('include_subfolders', String(includeSubfolders));
   }, [includeSubfolders]);
+
+  // ブックマークレット等からのURLパラメータ自動検知・即時追加
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const rawTitle = params.get('add_title') || params.get('title');
+      const rawUrl = params.get('add_url') || params.get('url');
+
+      if (rawUrl) {
+        const decodedTitle = rawTitle ? decodeURIComponent(rawTitle) : 'New Bookmark';
+        const decodedUrl = decodeURIComponent(rawUrl);
+
+        const newBookmark: Notebook = {
+          id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+          title: decodedTitle,
+          url: decodedUrl,
+          categoryId: activeCategoryId && activeCategoryId !== '__UNASSIGNED__' ? activeCategoryId : '',
+          createdAt: new Date().toISOString()
+        };
+
+        setNotebooks(prev => [newBookmark, ...prev]);
+
+        const successMsg = language === 'JP'
+          ? `【1クリック自動保存】「${decodedTitle}」を正常にストックしました！`
+          : `[1-Click Saved] Added "${decodedTitle}"!`;
+        setNotification(successMsg);
+
+        // クエリパラメータをURLから削除して重複追加を防止
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      console.error('Failed to parse URL params', e);
+    }
+  }, []);
 
   // 通知の自動消去
   useEffect(() => {
@@ -261,6 +312,29 @@ export default function App() {
 
   const updateNotebook = (id: string, updates: Partial<Notebook>) => {
     setNotebooks(notebooks.map(nb => nb.id === id ? { ...nb, ...updates } : nb));
+  };
+
+  const moveNotebooksToCategory = (notebookIds: string[], targetCategoryId: string) => {
+    if (notebookIds.length === 0) return;
+    const isUnassigned = targetCategoryId === '__UNASSIGNED__' || targetCategoryId === '';
+    const targetCat = isUnassigned ? null : categories.find(c => c.id === targetCategoryId);
+    const targetName = isUnassigned 
+      ? (language === 'JP' ? '未割り当て' : 'Unassigned') 
+      : (targetCat?.name || targetCategoryId);
+
+    setNotebooks(prev => prev.map(nb => {
+      if (notebookIds.includes(nb.id)) {
+        return { ...nb, categoryId: isUnassigned ? '' : targetCategoryId };
+      }
+      return nb;
+    }));
+
+    const count = notebookIds.length;
+    setNotification(
+      language === 'JP'
+        ? `${count} 件のブックマークを「${targetName}」へ移動しました`
+        : `Moved ${count} bookmark(s) to "${targetName}"`
+    );
   };
 
   const reorderNotebooks = (sourceId: string, targetId: string) => {
@@ -414,7 +488,7 @@ export default function App() {
   const t = i18n[language];
 
   return (
-    <div className="min-h-screen bg-base-bg flex flex-col md:flex-row text-[10px] md:text-xs tracking-wider relative h-screen overflow-hidden">
+    <div className={`min-h-screen bg-base-bg flex flex-col ${sidebarPosition === 'right' ? 'md:flex-row-reverse' : 'md:flex-row'} text-[10px] md:text-xs tracking-wider relative h-screen overflow-hidden`}>
       
       {/* 通知トースト */}
       {notification && (
@@ -477,12 +551,15 @@ export default function App() {
         onDeleteCategory={deleteCategory}
         activeCategory={activeCategoryId}
         onSelectCategory={setActiveCategoryId}
+        onDropNotebooksToCategory={moveNotebooksToCategory}
         language={language}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
         onImportHtml={handleImportHtml}
         onResetAllData={() => setIsResetConfirmOpen(true)}
         listFontSize={listFontSize}
+        onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
+        sidebarPosition={sidebarPosition}
       />
 
       <main className="flex-1 p-4 md:p-6 flex flex-col gap-4 max-h-screen overflow-hidden">
@@ -497,6 +574,9 @@ export default function App() {
           onListFontSizeChange={setListFontSize}
           linkFontSize={linkFontSize}
           onLinkFontSizeChange={setLinkFontSize}
+          onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
+          sidebarPosition={sidebarPosition}
+          onToggleSidebarPosition={toggleSidebarPosition}
         />
         
         {/* 02 検索＆フィルターモジュール */}
@@ -523,6 +603,7 @@ export default function App() {
           onDelete={deleteNotebooks} 
           onDeleteCategory={deleteCategory}
           onUpdate={updateNotebook}
+          onMoveNotebooks={moveNotebooksToCategory}
           onReorder={reorderNotebooks}
           onAdd={addNotebooks}
           searchQuery={searchQuery}
@@ -540,6 +621,13 @@ export default function App() {
         {/* PWA オフライン状態インジケーター */}
         <OfflineIndicator language={language} />
       </main>
+
+      {/* PC用 1クリック保存用ブックマークレット案内モーダル */}
+      <BookmarkletModal
+        isOpen={isBookmarkletModalOpen}
+        onClose={() => setIsBookmarkletModalOpen(false)}
+        language={language}
+      />
     </div>
   );
 }

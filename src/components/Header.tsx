@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Palette, Sliders } from 'lucide-react';
+import { Type, ChevronDown, Palette, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
@@ -14,6 +15,9 @@ interface Props {
   onListFontSizeChange: (size: number) => void;
   linkFontSize: number;
   onLinkFontSizeChange: (size: number) => void;
+  onOpenBookmarklet?: () => void;
+  sidebarPosition?: 'left' | 'right';
+  onToggleSidebarPosition?: () => void;
 }
 
 const THEMES: Theme[] = ['black', 'red', 'dark', 'light'];
@@ -28,9 +32,35 @@ export default function Header({
   listFontSize,
   onListFontSizeChange,
   linkFontSize,
-  onLinkFontSizeChange
+  onLinkFontSizeChange,
+  onOpenBookmarklet,
+  sidebarPosition = 'left',
+  onToggleSidebarPosition
 }: Props) {
   const t = i18n[language];
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error("Error attempting to enable fullscreen:", err);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(err => {
+          console.error("Error attempting to exit fullscreen:", err);
+        });
+      }
+    }
+  };
 
   const handleToggleTheme = () => {
     const idx = THEMES.indexOf(theme);
@@ -41,7 +71,7 @@ export default function Header({
   const getThemeLabel = (th: Theme): string => {
     switch (th) {
       case 'black': return 'BLACK';
-      case 'red': return 'CRIMSON RED';
+      case 'red': return 'RED';
       case 'dark': return 'NAVY';
       case 'light': return 'LIGHT';
       default: return th;
@@ -150,7 +180,7 @@ export default function Header({
               <span className="text-text-dim shrink-0 font-mono">{t.theme}:</span>
               <span className="flex items-center gap-1.5 font-bold font-mono">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
-                <span className="inline-block min-w-[50px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
+                <span className="inline-block min-w-[42px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
               </span>
             </button>
             
@@ -167,6 +197,45 @@ export default function Header({
                 className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
               >
                 JP
+              </button>
+            </div>
+
+            {/* 新規追加コントロール群（Side Change / 1クリック保存 / 全画面切り替え） */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* サイドバー左右移動（Side Change）ボタン */}
+              {onToggleSidebarPosition && (
+                <button
+                  type="button"
+                  onClick={onToggleSidebarPosition}
+                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                  title={sidebarPosition === 'left' 
+                    ? (language === 'JP' ? 'サイドバーを右側へ移動 (Side Change)' : 'Move Sidebar to Right') 
+                    : (language === 'JP' ? 'サイドバーを左側へ移動 (Side Change)' : 'Move Sidebar to Left')}
+                >
+                  {sidebarPosition === 'left' ? <PanelRight size={13} /> : <PanelLeft size={13} />}
+                </button>
+              )}
+
+              {/* PC用 1クリック保存ボタン設定 */}
+              {onOpenBookmarklet && (
+                <button
+                  type="button"
+                  onClick={onOpenBookmarklet}
+                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                  title={language === 'JP' ? '1クリックWeb保存機能（ブックマークレット）の設定' : '1-Click Web Saver Setup'}
+                >
+                  <Bookmark size={13} />
+                </button>
+              )}
+
+              {/* フルスクリーン切り替えボタン */}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                title={isFullscreen ? (language === 'JP' ? '全画面表示を解除' : 'Exit Fullscreen') : (language === 'JP' ? '全画面表示（フルスクリーン）' : 'Toggle Fullscreen')}
+              >
+                {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
             </div>
 

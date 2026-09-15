@@ -97,6 +97,17 @@ body {
   @apply bg-base-bg text-text-normal antialiased;
 }
 
+/* プルダウンメニュー（select/option）のテーマカラー統一 */
+select {
+  background-color: var(--theme-input-bg);
+  color: var(--theme-text-bright);
+}
+
+select option {
+  background-color: var(--theme-input-bg);
+  color: var(--theme-text-bright);
+}
+
 /* カスタムスクロールバー（ネイビーダーク調の細めデザイン） */
 * {
   scrollbar-width: thin;
