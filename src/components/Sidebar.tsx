@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { 
   LayoutGrid, Folders, Plus, Folder, FolderOpen, 
   Download, Upload, FileCode, Pencil, Trash2, RotateCcw,
-  ChevronRight, ChevronDown, ChevronsUpDown, FolderTree, Search, X
+  ChevronRight, ChevronDown, ChevronsUpDown, FolderTree, Search, X, Bookmark
 } from 'lucide-react';
 import { Category, Notebook } from '../types';
 import { Language, i18n } from '../i18n';
@@ -15,12 +15,15 @@ interface Props {
   onDeleteCategory: (id: string) => void;
   activeCategory: string | null;
   onSelectCategory: (id: string | null) => void;
+  onDropNotebooksToCategory?: (notebookIds: string[], targetCategoryId: string) => void;
   language: Language;
   onExportJson: () => void;
   onImportJson: (content: string) => void;
   onImportHtml: (content: string) => void;
   onResetAllData?: () => void;
   listFontSize?: number;
+  onOpenBookmarklet?: () => void;
+  sidebarPosition?: 'left' | 'right';
 }
 
 interface CategoryTreeNode extends Category {
@@ -42,12 +45,15 @@ export default function Sidebar({
   onDeleteCategory, 
   activeCategory, 
   onSelectCategory, 
+  onDropNotebooksToCategory,
   language, 
   onExportJson, 
   onImportJson, 
   onImportHtml,
   onResetAllData,
-  listFontSize = 11
+  listFontSize = 11,
+  onOpenBookmarklet,
+  sidebarPosition = 'left'
 }: Props) {
   // サイドバーの幅（localStorageで永続化）
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -64,6 +70,45 @@ export default function Sidebar({
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
+
+  // フォルダドロップ時のハイライト状態
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
+
+  const handleFolderDragOver = useCallback((e: React.DragEvent, catId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCatId !== catId) {
+      setDragOverCatId(catId);
+    }
+  }, [dragOverCatId]);
+
+  const handleFolderDragLeave = useCallback((e: React.DragEvent, catId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragOverCatId === catId) {
+      setDragOverCatId(null);
+    }
+  }, [dragOverCatId]);
+
+  const handleFolderDrop = useCallback((e: React.DragEvent, targetCategoryId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverCatId(null);
+
+    try {
+      const rawData = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      const data = JSON.parse(rawData);
+      if (data && data.type === 'BOOKMARK_ITEMS' && Array.isArray(data.ids) && data.ids.length > 0) {
+        onDropNotebooksToCategory?.(data.ids, targetCategoryId);
+      } else if (data && data.type === 'BOOKMARK_ITEM' && data.id) {
+        onDropNotebooksToCategory?.([data.id], targetCategoryId);
+      }
+    } catch (err) {
+      // ignore non-json
+    }
+  }, [onDropNotebooksToCategory]);
 
   // フォルダの2段階削除ステート（誤クリック防止）
   const [confirmDeleteCatId, setConfirmDeleteCatId] = useState<string | null>(null);
@@ -153,7 +198,9 @@ export default function Sidebar({
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingRef.current) return;
-      const newWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(moveEvent.clientX, MAX_SIDEBAR_WIDTH));
+      const newWidth = sidebarPosition === 'right'
+        ? Math.max(MIN_SIDEBAR_WIDTH, Math.min(window.innerWidth - moveEvent.clientX, MAX_SIDEBAR_WIDTH))
+        : Math.max(MIN_SIDEBAR_WIDTH, Math.min(moveEvent.clientX, MAX_SIDEBAR_WIDTH));
       setSidebarWidth(newWidth);
     };
 
@@ -364,6 +411,7 @@ export default function Sidebar({
     const isExpanded = expandedIds.has(node.id);
     const isActive = activeCategory === node.id;
     const isEditing = editingCatId === node.id;
+    const isDragOver = dragOverCatId === node.id;
 
     // スリムなインデント計算 (1階層あたり10px)
     const indentPx = node.level * 10 + 4;
@@ -371,10 +419,15 @@ export default function Sidebar({
     return (
       <div key={node.id} className="flex flex-col min-w-full">
         <div 
+          onDragOver={(e) => handleFolderDragOver(e, node.id)}
+          onDragLeave={(e) => handleFolderDragLeave(e, node.id)}
+          onDrop={(e) => handleFolderDrop(e, node.id)}
           className={`group/cat flex items-center min-h-[30px] py-0.5 pr-1.5 border transition-colors select-none ${
-            isActive 
-              ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
-              : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
+            isDragOver
+              ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
+              : isActive 
+                ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
+                : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
           }`}
           style={{ paddingLeft: `${indentPx}px` }}
         >
@@ -535,13 +588,17 @@ export default function Sidebar({
   return (
     <aside 
       style={{ width: `${sidebarWidth}px` }}
-      className="relative shrink-0 h-full border-r border-border-main bg-base-bg flex flex-col p-4 gap-3 z-20 select-none transition-none overflow-hidden"
+      className={`relative shrink-0 h-full bg-base-bg flex flex-col p-4 gap-3 z-20 select-none transition-none overflow-hidden ${
+        sidebarPosition === 'right' ? 'border-l border-border-main' : 'border-r border-border-main'
+      }`}
     >
       {/* ドラッグリサイズ用の境界バー */}
       <div
         onMouseDown={handleMouseDownResizer}
         onDoubleClick={handleDoubleClickResizer}
-        className={`absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-border-light/70 transition-colors z-30 ${
+        className={`absolute top-0 w-1.5 h-full cursor-col-resize hover:bg-border-light/70 transition-colors z-30 ${
+          sidebarPosition === 'right' ? 'left-0' : 'right-0'
+        } ${
           isDragging ? 'bg-border-light' : 'bg-transparent'
         }`}
         title={language === 'JP' ? 'ドラッグで幅を調整 (ダブルクリックで初期幅に戻す)' : 'Drag to resize sidebar (Double click to reset)'}
@@ -668,11 +725,17 @@ export default function Sidebar({
 
             {unassignedCount > 0 && (
               <button 
+                type="button"
                 onClick={() => onSelectCategory('__UNASSIGNED__')}
+                onDragOver={(e) => handleFolderDragOver(e, '__UNASSIGNED__')}
+                onDragLeave={(e) => handleFolderDragLeave(e, '__UNASSIGNED__')}
+                onDrop={(e) => handleFolderDrop(e, '__UNASSIGNED__')}
                 className={`w-full min-h-[26px] py-0.5 flex items-center justify-between px-2.5 border transition-colors cursor-pointer ${
-                  activeCategory === '__UNASSIGNED__' 
-                    ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
-                    : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
+                  dragOverCatId === '__UNASSIGNED__'
+                    ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
+                    : activeCategory === '__UNASSIGNED__' 
+                      ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
+                      : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
                 }`}
               >
                 <span className={`italic truncate ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold' : ''}`} style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>

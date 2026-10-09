@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
 import { Type, ChevronDown, Palette, Sliders, Image } from 'lucide-react';
@@ -33,6 +34,29 @@ export default function Header({
   onOpenIconModal
 }: Props) {
   const t = i18n[language];
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error("Error attempting to enable fullscreen:", err);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(err => {
+          console.error("Error attempting to exit fullscreen:", err);
+        });
+      }
+    }
+  };
 
   const handleToggleTheme = () => {
     const idx = THEMES.indexOf(theme);
@@ -43,7 +67,7 @@ export default function Header({
   const getThemeLabel = (th: Theme): string => {
     switch (th) {
       case 'black': return 'BLACK';
-      case 'red': return 'CRIMSON RED';
+      case 'red': return 'RED';
       case 'dark': return 'NAVY';
       case 'light': return 'LIGHT';
       default: return th;
@@ -152,7 +176,7 @@ export default function Header({
               <span className="text-text-dim shrink-0 font-mono">{t.theme}:</span>
               <span className="flex items-center gap-1.5 font-bold font-mono">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
-                <span className="inline-block min-w-[50px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
+                <span className="inline-block min-w-[42px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
               </span>
             </button>
             
