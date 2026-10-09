@@ -1,6 +1,6 @@
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Palette, Sliders } from 'lucide-react';
+import { Type, ChevronDown, Palette, Sliders, Image } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onListFontSizeChange: (size: number) => void;
   linkFontSize: number;
   onLinkFontSizeChange: (size: number) => void;
+  onOpenIconModal: () => void;
 }
 
 const THEMES: Theme[] = ['black', 'red', 'dark', 'light'];
@@ -28,7 +29,8 @@ export default function Header({
   listFontSize,
   onListFontSizeChange,
   linkFontSize,
-  onLinkFontSizeChange
+  onLinkFontSizeChange,
+  onOpenIconModal
 }: Props) {
   const t = i18n[language];
 
@@ -169,6 +171,19 @@ export default function Header({
                 JP
               </button>
             </div>
+
+            {/* アイコン変更モーダル起動ボタン */}
+            <button 
+              type="button"
+              onClick={onOpenIconModal}
+              className="flex items-center gap-1.5 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0"
+              title={language === 'JP' ? 'アイコン変更 / 専用アイコン保管庫を表示' : 'Change Icon / Open Icon Vault'}
+            >
+              <Image size={12} className="text-text-dim shrink-0" />
+              <span className="text-text-bright font-bold font-mono text-[10px]">
+                {language === 'JP' ? 'アイコン変更' : 'ICON'}
+              </span>
+            </button>
 
             {/* PWA インストールボタン */}
             <PWAInstallButton language={language} />

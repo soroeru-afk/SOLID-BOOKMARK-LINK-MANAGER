@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import SearchModule, { SearchScope } from './components/SearchModule';
 import NotebookList from './components/NotebookList';
 import Header from './components/Header';
+import IconModal from './components/IconModal';
 import { Category, Notebook } from './types';
 import { Language } from './i18n';
 import { parseNetscapeBookmarks } from './utils/bookmarkParser';
@@ -66,6 +67,7 @@ export default function App() {
   });
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
+  const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
 
   // テキストサイズ設定 (localStorageに保存・復元)
   const [listFontSize, setListFontSize] = useState<number>(() => {
@@ -497,6 +499,14 @@ export default function App() {
           onListFontSizeChange={setListFontSize}
           linkFontSize={linkFontSize}
           onLinkFontSizeChange={setLinkFontSize}
+          onOpenIconModal={() => setIsIconModalOpen(true)}
+        />
+
+        {/* アイコン変更 / 専用アイコン保管庫 モーダル */}
+        <IconModal 
+          isOpen={isIconModalOpen} 
+          onClose={() => setIsIconModalOpen(false)} 
+          language={language} 
         />
         
         {/* 02 検索＆フィルターモジュール */}
