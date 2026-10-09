@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw } from 'lucide-react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
@@ -38,6 +38,7 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Notebook>) => void;
   onMoveNotebooks?: (notebookIds: string[], targetCategoryId: string) => void;
   onReorder?: (sourceId: string, targetId: string) => void;
+  onMoveOrder?: (selectedIds: string[], direction: 'top' | 'up' | 'down' | 'bottom', contextIds: string[]) => void;
   onAdd: (items: {title: string, url: string, categoryId: string}[]) => void;
   searchQuery: string;
   language: Language;
@@ -64,6 +65,7 @@ export default function NotebookList({
   onUpdate, 
   onMoveNotebooks,
   onReorder,
+  onMoveOrder,
   onAdd,
   searchQuery,
   language,
@@ -77,15 +79,12 @@ export default function NotebookList({
   onCustomDimensionsChange
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [isCustomExpanded, setIsCustomExpanded] = useState(false);
-  const [customWInput, setCustomWInput] = useState(() => String(customDimensions.width));
-  const [customHInput, setCustomHInput] = useState(() => String(customDimensions.height));
-  const [isSaveNoticeVisible, setIsSaveNoticeVisible] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [bulkMoveTargetCategory, setBulkMoveTargetCategory] = useState<string>('');
 
@@ -193,24 +192,6 @@ export default function NotebookList({
         setTimeout(() => setCopiedId(null), 1800);
       });
     }
-  };
-
-  // customDimensionsが変更されたときにインプット数値を同期
-  useEffect(() => {
-    setCustomWInput(String(customDimensions.width));
-    setCustomHInput(String(customDimensions.height));
-  }, [customDimensions.width, customDimensions.height]);
-
-  const handleSaveCustom = (overrideW?: number, overrideH?: number) => {
-    const rawW = overrideW ?? parseInt(customWInput, 10);
-    const rawH = overrideH ?? parseInt(customHInput, 10);
-    const finalW = Math.max(400, Math.min(3840, isNaN(rawW) ? customDimensions.width : rawW));
-    const finalH = Math.max(300, Math.min(2160, isNaN(rawH) ? customDimensions.height : rawH));
-    
-    onCustomDimensionsChange?.({ width: finalW, height: finalH });
-    onWindowSizePresetChange?.('custom');
-    setIsSaveNoticeVisible(true);
-    setTimeout(() => setIsSaveNoticeVisible(false), 2000);
   };
 
   // 初回スクロール位置に応じた初期件数の計算（スクロール位置復元用）
@@ -370,31 +351,82 @@ export default function NotebookList({
     // Ctrl / Cmd / Shift クリックはブラウザ本来のタブ動作を尊重
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
-    openLink(url, {
-      mode: linkOpenMode,
-      preset: windowSizePreset,
-      customDimensions
-    });
+    openLink(url);
   };
 
+  /**
+   * カオルさまご指定: Shiftキーでの範囲複数選択 & トグル選択（K-Navigator仕様）
+   */
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const currIdx = filteredNotebooks.findIndex(nb => nb.id === id);
+    if (currIdx === -1) return;
+
+    if (e.shiftKey && lastClickedId) {
+      const lastIdx = filteredNotebooks.findIndex(nb => nb.id === lastClickedId);
+      if (lastIdx !== -1) {
+        const start = Math.min(lastIdx, currIdx);
+        const end = Math.max(lastIdx, currIdx);
+        const newIds = new Set(selectedIds);
+        for (let i = start; i <= end; i++) {
+          newIds.add(filteredNotebooks[i].id);
+        }
+        setSelectedIds(newIds);
+        return;
+      }
+    }
+
     const newIds = new Set(selectedIds);
     if (newIds.has(id)) {
       newIds.delete(id);
     } else {
       newIds.add(id);
+      setLastClickedId(id);
     }
     setSelectedIds(newIds);
+    if (!selectedIds.has(id)) {
+      setLastClickedId(id);
+    }
+  };
+
+  const handleRowClick = (id: string, e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('a') || target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    toggleSelect(id, e);
   };
 
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredNotebooks.length && filteredNotebooks.length > 0) {
       setSelectedIds(new Set());
+      setLastClickedId(null);
     } else {
       setSelectedIds(new Set(filteredNotebooks.map(nb => nb.id)));
+      if (filteredNotebooks.length > 0) {
+        setLastClickedId(filteredNotebooks[0].id);
+      }
     }
+  };
+
+  /**
+   * カオルさまご指定: セレクトキャンセル（選択状態をすべて解除）
+   */
+  const handleClearSelection = () => {
+    setSelectedIds(new Set());
+    setLastClickedId(null);
+    setConfirmBulkDelete(false);
+  };
+
+  /**
+   * カオルさまご指定: 選択したブックマークを上下・最上部・最下部へ移動
+   */
+  const handleMove = (direction: 'top' | 'up' | 'down' | 'bottom') => {
+    if (selectedIds.size === 0 || !onMoveOrder) return;
+    const contextIds = filteredNotebooks.map(nb => nb.id);
+    onMoveOrder(Array.from(selectedIds), direction, contextIds);
   };
 
   // 2段階削除用の確認ステートとタイマー（誤操作防止）
@@ -712,256 +744,40 @@ export default function NotebookList({
         {/* 2. ブックマーク一覧セクション */}
         <div className="flex flex-col flex-1 min-h-0">
           
-          {/* リスト制御ヘッダー */}
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-text-dim border-b border-border-main pb-2 mb-2 px-2 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-text-normal flex items-center gap-1">
-                <FileText size={11} className="text-text-bright" />
-                {t.directBookmarks}
-              </span>
-              <span>&nbsp;|&nbsp; {t.sortDate} &nbsp; {t.totalRecs} <strong className="text-text-bright font-mono">{filteredNotebooks.length}</strong></span>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              {/* 開き方モード（独立ウィンドウ / 新規タブ） */}
-              <div className="flex items-center gap-1.5 border border-border-main bg-base-bg px-2 py-0.5 select-none" title={language === 'JP' ? 'リンククリック時の開き方を選択' : 'Select link open mode'}>
-                <span className="text-text-dim flex items-center gap-1 font-mono text-[9px] font-bold">
-                  <AppWindow size={11} className="text-text-dim" />
-                  <span>{t.openMode}</span>
+          {/* リスト制御ヘッダー (位置固定レイアウト: 選択時・非選択時でボタン位置が一切ブレない) */}
+          <div className="flex flex-col gap-1.5 border-b border-border-main pb-2 mb-2 px-2 shrink-0">
+            {/* 上段: 基本情報 ＆ 表示・追加コントロール */}
+            <div className="flex items-center justify-between gap-2 text-[10px] text-text-dim">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <span className="font-bold text-text-normal flex items-center gap-1 shrink-0">
+                  <FileText size={11} className="text-text-bright" />
+                  {t.directBookmarks}
                 </span>
-                <div className="flex border border-border-main rounded-xs overflow-hidden leading-none text-[9px] font-bold font-mono">
-                  <button
-                    type="button"
-                    onClick={() => onLinkOpenModeChange?.('window')}
-                    className={`px-2 py-1 transition-colors cursor-pointer ${
-                      linkOpenMode === 'window' 
-                        ? 'bg-border-light text-white font-bold' 
-                        : 'text-text-dim hover:text-text-bright'
-                    }`}
-                    title={language === 'JP' ? '独立した新しい別ウィンドウで開く（おすすめ）' : 'Open in a standalone new window'}
-                  >
-                    {t.openWindow}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onLinkOpenModeChange?.('tab')}
-                    className={`px-2 py-1 transition-colors cursor-pointer ${
-                      linkOpenMode === 'tab' 
-                        ? 'bg-border-light text-white font-bold' 
-                        : 'text-text-dim hover:text-text-bright'
-                    }`}
-                    title={language === 'JP' ? 'ブラウザの新しいタブで開く' : 'Open in a new browser tab'}
-                  >
-                    {t.openTab}
-                  </button>
-                </div>
+                <span className="truncate">&nbsp;|&nbsp; {t.sortDate} &nbsp; {t.totalRecs} <strong className="text-text-bright font-mono">{filteredNotebooks.length}</strong></span>
+                {selectedIds.size > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-border-main text-text-bright text-[9px] font-mono font-bold shrink-0">
+                    {language === 'JP' ? `選択中: ${selectedIds.size}件` : `SELECTED: ${selectedIds.size}`}
+                  </span>
+                )}
               </div>
 
-              {/* 独立ウィンドウサイズ選択（ウィンドウモード時のみ） */}
-              {linkOpenMode === 'window' && (
-                <div className="flex flex-wrap items-center gap-1.5 border border-border-main bg-base-bg px-2 py-0.5 select-none" title={language === 'JP' ? '独立ウィンドウの表示サイズを選択・カスタマイズ' : 'Select or customize window size'}>
-                  <span className="text-text-dim flex items-center gap-1 font-mono text-[9px] font-bold">
-                    <span>{t.windowSize}</span>
-                  </span>
-                  <div className="relative">
-                    <select
-                      value={windowSizePreset}
-                      onChange={(e) => {
-                        const newPreset = e.target.value as WindowSizePreset;
-                        onWindowSizePresetChange?.(newPreset);
-                        if (newPreset === 'custom') {
-                          setIsCustomExpanded(true);
-                        }
-                      }}
-                      className="appearance-none bg-base-bg border border-border-main text-text-bright hover:border-border-light pl-2 pr-5 py-0.5 text-[9px] font-mono font-bold transition-colors cursor-pointer focus:outline-none"
-                    >
-                      <option value="standard">{t.sizeStandard}</option>
-                      <option value="wide">{t.sizeWide}</option>
-                      <option value="ultra">{t.sizeUltra}</option>
-                      <option value="fhd">{t.sizeFhd}</option>
-                      <option value="max">{t.sizeMax}</option>
-                      <option value="compact">{t.sizeCompact}</option>
-                      <option value="custom">
-                        {language === 'JP' 
-                          ? `登録カスタム (${customDimensions.width}×${customDimensions.height})` 
-                          : `CUSTOM (${customDimensions.width}×${customDimensions.height})`}
-                      </option>
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-1 pointer-events-none text-text-dim">
-                      <ChevronDown size={10} />
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* ブックマーク追加ボタン */}
+                <button 
+                  type="button"
+                  onClick={() => setIsAddFormOpen(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 border transition-colors font-bold text-[10px] tracking-wide cursor-pointer ${
+                    isAddFormOpen 
+                      ? 'bg-border-light text-text-bright border-border-light' 
+                      : 'bg-base-bg hover:bg-border-main text-text-normal hover:text-text-bright border-border-main'
+                  }`}
+                  title={isAddFormOpen ? t.closeForm : t.addBookmark}
+                >
+                  <Plus size={12} className={isAddFormOpen ? "rotate-45 transition-transform" : "transition-transform"} />
+                  <span>{isAddFormOpen ? t.closeForm : t.addBookmark}</span>
+                </button>
 
-                  {/* カスタムサイズ設定トグルボタン */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (windowSizePreset !== 'custom') {
-                        onWindowSizePresetChange?.('custom');
-                      }
-                      setIsCustomExpanded(prev => !prev);
-                    }}
-                    className={`p-1 border transition-colors cursor-pointer ${
-                      windowSizePreset === 'custom' || isCustomExpanded
-                        ? 'bg-border-light text-text-bright border-border-light'
-                        : 'border-border-main text-text-dim hover:text-text-bright'
-                    }`}
-                    title={language === 'JP' ? 'ウィンドウサイズをピクセル単位で微調整・登録' : 'Customize & register window size'}
-                  >
-                    <SlidersHorizontal size={10} />
-                  </button>
-
-                  {/* カスタムサイズ入力＆登録欄（custom選択時、またはトグル展開時） */}
-                  {(windowSizePreset === 'custom' || isCustomExpanded) && (
-                    <div className="flex items-center gap-1.5 pl-1.5 border-l border-border-main">
-                      <div className="flex items-center gap-1 font-mono text-[9px]">
-                        <span className="text-text-dim">{t.customWidth}</span>
-                        <input
-                          type="number"
-                          min={400}
-                          max={3840}
-                          step={20}
-                          value={customWInput}
-                          onChange={(e) => setCustomWInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustom(); }}
-                          className="w-13 px-1 py-0.5 bg-input-bg border border-border-main text-text-bright text-[9px] font-mono font-bold text-center focus:outline-none focus:border-border-light"
-                          title={language === 'JP' ? '横幅（ピクセル） - Enterで登録' : 'Width (px) - Press Enter to save'}
-                        />
-                      </div>
-                      <span className="text-text-dim font-mono text-[9px]">×</span>
-                      <div className="flex items-center gap-1 font-mono text-[9px]">
-                        <span className="text-text-dim">{t.customHeight}</span>
-                        <input
-                          type="number"
-                          min={300}
-                          max={2160}
-                          step={20}
-                          value={customHInput}
-                          onChange={(e) => setCustomHInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustom(); }}
-                          className="w-13 px-1 py-0.5 bg-input-bg border border-border-main text-text-bright text-[9px] font-mono font-bold text-center focus:outline-none focus:border-border-light"
-                          title={language === 'JP' ? '高さ（ピクセル） - Enterで登録' : 'Height (px) - Press Enter to save'}
-                        />
-                      </div>
-                      <span className="text-text-dim font-mono text-[8px]">px</span>
-
-                      {/* 登録・保存ボタン */}
-                      <button
-                        type="button"
-                        onClick={() => handleSaveCustom()}
-                        className={`flex items-center gap-1 px-1.5 py-0.5 border font-mono text-[9px] font-bold transition-all cursor-pointer ${
-                          isSaveNoticeVisible
-                            ? 'bg-emerald-900/80 border-emerald-500 text-emerald-200'
-                            : 'bg-base-bg hover:bg-border-main border-border-main text-text-bright hover:border-border-light'
-                        }`}
-                        title={language === 'JP' ? 'このサイズを登録保存する' : 'Save this custom size'}
-                      >
-                        {isSaveNoticeVisible ? (
-                          <>
-                            <Check size={9} className="text-emerald-400" />
-                            <span>{t.customSaved}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save size={9} className="text-text-dim" />
-                            <span>{t.saveCustom}</span>
-                          </>
-                        )}
-                      </button>
-
-                      {/* 画面最大化（MAX）プリセット切り替えボタン（カスタム値は上書きされず保持されます） */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onWindowSizePresetChange?.('max');
-                        }}
-                        className={`flex items-center gap-0.5 px-1 py-0.5 border font-mono text-[8px] font-bold transition-colors cursor-pointer ${
-                          windowSizePreset === 'max'
-                            ? 'bg-border-light text-text-bright border-border-light'
-                            : 'bg-base-bg hover:bg-border-main text-text-dim hover:text-text-bright border-border-main'
-                        }`}
-                        title={language === 'JP' ? '画面最大サイズで開く（登録したカスタムサイズはそのまま保持されます）' : 'Open in full screen (keeps your saved custom size)'}
-                      >
-                        <Maximize2 size={9} />
-                        <span>MAX</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ブックマーク追加ボタン */}
-              <button 
-                type="button"
-                onClick={() => setIsAddFormOpen(prev => !prev)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 border transition-colors font-bold text-[10px] tracking-wide cursor-pointer ${
-                  isAddFormOpen 
-                    ? 'bg-border-light text-text-bright border-border-light' 
-                    : 'bg-base-bg hover:bg-border-main text-text-normal hover:text-text-bright border-border-main'
-                }`}
-                title={isAddFormOpen ? t.closeForm : t.addBookmark}
-              >
-                <Plus size={12} className={isAddFormOpen ? "rotate-45 transition-transform" : "transition-transform"} />
-                <span>{isAddFormOpen ? t.closeForm : t.addBookmark}</span>
-              </button>
-
-              {filteredNotebooks.length > 0 && (
-                <div className="flex gap-4 items-center border-l border-border-main/50 pl-3">
-                   <button 
-                      onClick={toggleSelectAll}
-                      className="hover:text-text-bright transition-colors flex items-center gap-1 cursor-pointer"
-                   >
-                      {selectedIds.size === filteredNotebooks.length && filteredNotebooks.length > 0 ? <CheckSquare size={12} /> : <Square size={12} />}
-                      {t.selectAll}
-                   </button>
-                   {selectedIds.size > 0 && (
-                     <div className="flex items-center gap-2">
-                       {/* 一括フォルダ移動 */}
-                       {onMoveNotebooks && (
-                         <div className="flex items-center gap-1 bg-input-bg border border-border-main px-1.5 py-0.5 rounded-xs">
-                           <Folder size={11} className="text-text-dim shrink-0" />
-                           <select
-                             value={bulkMoveTargetCategory}
-                             onChange={(e) => setBulkMoveTargetCategory(e.target.value)}
-                             className="bg-transparent text-text-bright text-[10px] outline-none font-mono cursor-pointer max-w-[130px] sm:max-w-[180px] truncate"
-                           >
-                             <option value="" disabled>{language === 'JP' ? '移動先フォルダ...' : 'Move to folder...'}</option>
-                             <option value="__UNASSIGNED__">{t.unassigned}</option>
-                             {categories.map(c => (
-                               <option key={c.id} value={c.id}>{c.path || c.name}</option>
-                             ))}
-                           </select>
-                           <button
-                             type="button"
-                             onClick={handleBulkMove}
-                             disabled={!bulkMoveTargetCategory}
-                             className="bg-border-light text-white hover:bg-white hover:text-black disabled:opacity-40 disabled:hover:bg-border-light disabled:hover:text-white px-2 py-0.5 text-[9px] font-bold font-mono transition-colors cursor-pointer rounded-xs"
-                           >
-                             {language === 'JP' ? '一括移動' : 'MOVE'}
-                           </button>
-                         </div>
-                       )}
-
-                       <button 
-                          type="button"
-                          onClick={handleBulkDeleteClick}
-                          className={`transition-all flex items-center gap-1.5 font-bold cursor-pointer px-2 py-0.5 border ${
-                            confirmBulkDelete 
-                              ? 'bg-red-900/40 text-red-300 border-red-500 animate-pulse' 
-                              : 'text-[#ff7b72] hover:text-[#ff9b94] border-transparent hover:border-red-500/30 hover:bg-red-950/20'
-                          }`}
-                          title={confirmBulkDelete ? t.confirmDelete : t.deleteSelected}
-                       >
-                          <Trash2 size={12} className={confirmBulkDelete ? 'animate-bounce' : ''} />
-                          <span>{confirmBulkDelete ? t.confirmDeleteSelected : `${t.deleteSelected} (${selectedIds.size})`}</span>
-                       </button>
-                     </div>
-                   )}
-                </div>
-              )}
-
-              {/* リスト表示コントロール (Reset Widths & 表示切替) */}
-              <div className="flex items-center gap-2 ml-auto">
+                {/* リスト列幅リセット */}
                 {viewMode === 'list' && (
                   <button
                     type="button"
@@ -1006,6 +822,149 @@ export default function NotebookList({
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* 下段: アクションバー（ミュージックプレイヤー風の洗練されたシンプルボタン配置・位置固定でブレなし） */}
+            <div className="flex items-center gap-2 text-[10px] text-text-dim bg-subtle-bg/40 border border-border-main/70 px-2 py-1 overflow-x-auto no-scrollbar">
+              {/* カオルさまご指定: ミュージックプレイヤー風のシンプルな移動操作デッキ (一番上 / 上へ / 下へ / 一番下) */}
+              <div 
+                className="flex items-center border border-border-main bg-base-bg rounded-xs overflow-hidden leading-none shrink-0"
+                title={language === 'JP' ? '選択したブックマークを移動（一番上 / 上へ / 下へ / 一番下）' : 'Reorder selected (Top / Up / Down / Bottom)'}
+              >
+                {/* 一番上へ (Top / Skip to start) */}
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => handleMove('top')}
+                  className="w-7 h-6 flex items-center justify-center border-r border-border-main/50 text-text-dim hover:text-text-bright hover:bg-border-main/20 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-text-dim cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title={language === 'JP' ? '一番上へ移動' : 'Move to top'}
+                >
+                  <ArrowUpToLine size={12} />
+                </button>
+                {/* 1つ上へ (Up / Prev) */}
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => handleMove('up')}
+                  className="w-7 h-6 flex items-center justify-center border-r border-border-main/50 text-text-dim hover:text-text-bright hover:bg-border-main/20 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-text-dim cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title={language === 'JP' ? '上へ移動' : 'Move up'}
+                >
+                  <ArrowUp size={12} />
+                </button>
+                {/* 1つ下へ (Down / Next) */}
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => handleMove('down')}
+                  className="w-7 h-6 flex items-center justify-center border-r border-border-main/50 text-text-dim hover:text-text-bright hover:bg-border-main/20 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-text-dim cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title={language === 'JP' ? '下へ移動' : 'Move down'}
+                >
+                  <ArrowDown size={12} />
+                </button>
+                {/* 一番下へ (Bottom / Skip to end) */}
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => handleMove('bottom')}
+                  className="w-7 h-6 flex items-center justify-center text-text-dim hover:text-text-bright hover:bg-border-main/20 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-text-dim cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title={language === 'JP' ? '一番下へ移動' : 'Move to bottom'}
+                >
+                  <ArrowDownToLine size={12} />
+                </button>
+              </div>
+
+              {/* 仕切り線 */}
+              <div className="h-4 w-px bg-border-main/60 shrink-0" />
+
+              {/* 2. 選択操作エリア (全選択 ＆ カオルさまご指定の「セレクトキャンセル」) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* 全選択 */}
+                <button 
+                  type="button"
+                  onClick={toggleSelectAll}
+                  disabled={filteredNotebooks.length === 0}
+                  className="h-6 px-2 flex items-center gap-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light text-[9px] font-mono font-bold transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed rounded-xs"
+                  title={language === 'JP' ? 'すべてのブックマークを選択' : 'Select all bookmarks'}
+                >
+                  {selectedIds.size === filteredNotebooks.length && filteredNotebooks.length > 0 ? (
+                    <CheckSquare size={11} className="text-text-bright" />
+                  ) : (
+                    <Square size={11} />
+                  )}
+                  <span>{t.selectAll}</span>
+                </button>
+
+                {/* カオルさまご指定: セレクトキャンセル (選択解除) */}
+                <button 
+                  type="button"
+                  onClick={handleClearSelection}
+                  disabled={selectedIds.size === 0}
+                  className="h-6 px-2 flex items-center gap-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light text-[9px] font-mono font-bold transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed rounded-xs"
+                  title={language === 'JP' ? '選択状態を解除（セレクトキャンセル）' : 'Cancel selection'}
+                >
+                  <X size={11} />
+                  <span>{t.cancelSelect || (language === 'JP' ? 'セレクトキャンセル' : 'DESELECT')}</span>
+                </button>
+              </div>
+
+              {/* 仕切り線 */}
+              <div className="h-4 w-px bg-border-main/60 shrink-0" />
+
+              {/* 3. 一括フォルダ移動 */}
+              {onMoveNotebooks && (
+                <div className={`flex items-center gap-1 h-6 bg-base-bg border border-border-main px-1.5 rounded-xs shrink-0 transition-opacity ${
+                  selectedIds.size === 0 ? 'opacity-25' : 'opacity-100'
+                }`}>
+                  <Folder size={11} className="text-text-dim shrink-0" />
+                  <select
+                    value={bulkMoveTargetCategory}
+                    disabled={selectedIds.size === 0}
+                    onChange={(e) => setBulkMoveTargetCategory(e.target.value)}
+                    className="bg-transparent text-text-bright text-[10px] outline-none font-mono cursor-pointer disabled:cursor-not-allowed max-w-[130px] sm:max-w-[180px] truncate"
+                  >
+                    <option value="" disabled>{language === 'JP' ? '移動先フォルダ...' : 'MOVE TO FOLDER...'}</option>
+                    <option value="__UNASSIGNED__">{t.unassigned}</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleBulkMove}
+                    disabled={selectedIds.size === 0 || !bulkMoveTargetCategory}
+                    className="bg-border-light text-white hover:bg-white hover:text-black disabled:opacity-40 disabled:hover:bg-border-light disabled:hover:text-white px-2 py-0.5 text-[9px] font-bold font-mono transition-colors cursor-pointer disabled:cursor-not-allowed rounded-xs"
+                  >
+                    {language === 'JP' ? '移動' : 'MOVE'}
+                  </button>
+                </div>
+              )}
+
+              {/* 仕切り線 */}
+              <div className="h-4 w-px bg-border-main/60 shrink-0" />
+
+              {/* 4. 一括削除 */}
+              <button 
+                type="button"
+                disabled={selectedIds.size === 0}
+                onClick={handleBulkDeleteClick}
+                className={`h-6 px-2 flex items-center gap-1.5 font-bold border text-[9px] font-mono shrink-0 rounded-xs transition-all ${
+                  selectedIds.size === 0 
+                    ? 'opacity-25 border-border-main bg-base-bg text-text-dim cursor-not-allowed'
+                    : confirmBulkDelete 
+                      ? 'bg-red-900/40 text-red-300 border-red-500 animate-pulse cursor-pointer' 
+                      : 'text-[#ff7b72] hover:text-[#ff9b94] bg-base-bg border-border-main hover:border-red-500/30 hover:bg-red-950/20 cursor-pointer'
+                }`}
+                title={confirmBulkDelete ? t.confirmDelete : (language === 'JP' ? '選択したブックマークを削除' : 'Delete selected')}
+              >
+                <Trash2 size={11} className={confirmBulkDelete ? 'animate-bounce' : ''} />
+                <span>
+                  {confirmBulkDelete 
+                    ? (language === 'JP' ? '削除実行？' : 'CONFIRM?') 
+                    : (selectedIds.size > 0 ? `${language === 'JP' ? '削除' : 'DELETE'} (${selectedIds.size})` : (language === 'JP' ? '削除' : 'DELETE'))
+                  }
+                </span>
+              </button>
+
             </div>
           </div>
 
@@ -1129,11 +1088,12 @@ export default function NotebookList({
                     onDragLeave={(e) => handleDragLeave(e, nb.id)}
                     onDrop={(e) => handleDrop(e, nb.id)}
                     onDragEnd={handleDragEnd}
-                    className={`w-full flex items-center py-2.5 px-2 border-b border-border-main/50 hover:bg-border-main/20 group transition-all gap-2 sm:gap-3 ${
-                      selectedIds.has(nb.id) ? 'bg-border-main/15' : ''
+                    className={`w-full flex items-center py-2.5 px-2 border-b border-border-main/50 hover:bg-border-main/20 group transition-all gap-2 sm:gap-3 cursor-pointer select-none ${
+                      selectedIds.has(nb.id) ? 'bg-border-main/20' : ''
                     } ${isDragging ? 'opacity-40 bg-border-main/30 border-dashed border-border-light' : ''} ${
                       isDragOver ? 'border-t-2 border-t-text-bright bg-border-main/25' : ''
                     }`}
+                    onClick={(e) => handleRowClick(nb.id, e)}
                   >
                     {/* ドラッグハンドル */}
                     <div 
@@ -1148,6 +1108,7 @@ export default function NotebookList({
                     <div 
                        className="w-8 flex justify-center shrink-0 cursor-pointer"
                        onClick={(e) => toggleSelect(nb.id, e)}
+                       title={selectedIds.has(nb.id) ? (language === 'JP' ? '選択解除' : 'Deselect') : (language === 'JP' ? '選択（Shift+クリックで範囲複数選択）' : 'Select (Shift+Click for range)')}
                     >
                        {selectedIds.has(nb.id) ? 
                           <CheckSquare size={14} className="text-text-bright" /> : 
@@ -1241,11 +1202,7 @@ export default function NotebookList({
                               onClick={(e) => handleOpenLink(e, nb.url)}
                               style={{ fontSize: `${linkFontSize}px` }}
                               className="text-text-bright hover:underline truncate font-bold transition-colors cursor-pointer"
-                              title={
-                                linkOpenMode === 'window'
-                                  ? (language === 'JP' ? `${nb.title} (新しい別ウィンドウで開く)` : `${nb.title} (Open in new window)`)
-                                  : nb.title
-                              }
+                              title={language === 'JP' ? `${nb.title} (ウィンドウで開く)` : `${nb.title} (Open in window)`}
                             >
                               {nb.title}
                             </a>
@@ -1254,10 +1211,10 @@ export default function NotebookList({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
+                                openLink(nb.url);
                               }}
                               className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
-                              title={language === 'JP' ? '常に独立ウィンドウで開く' : 'Open in standalone window'}
+                              title={language === 'JP' ? 'ウィンドウで開く (1920×1100)' : 'Open in window (1920x1100)'}
                             >
                               <AppWindow size={11} />
                             </button>
@@ -1376,7 +1333,7 @@ export default function NotebookList({
                       onDragLeave={(e) => handleDragLeave(e, nb.id)}
                       onDrop={(e) => handleDrop(e, nb.id)}
                       onDragEnd={handleDragEnd}
-                      className={`bg-base-bg border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none ${
+                      className={`bg-base-bg border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none cursor-pointer ${
                         isSelected 
                           ? 'border-border-light bg-border-main/20 ring-1 ring-border-light shadow-md' 
                           : 'border-border-main hover:border-border-light hover:bg-border-main/10'
@@ -1385,6 +1342,7 @@ export default function NotebookList({
                       } ${
                         isDragOver ? 'ring-2 ring-text-bright border-text-bright bg-border-main/30 scale-[1.01]' : ''
                       }`}
+                      onClick={(e) => handleRowClick(nb.id, e)}
                     >
                       {/* 上部ヘッダー: ドラッグハンドル + チェックボックス + ドメインバッジ + アクションボタン群 */}
                       <div>
@@ -1408,7 +1366,7 @@ export default function NotebookList({
                               }}
                               onDragStart={(e) => e.stopPropagation()}
                               className="text-text-dim hover:text-text-bright transition-colors cursor-pointer shrink-0"
-                              title={isSelected ? "Deselect" : "Select"}
+                              title={isSelected ? (language === 'JP' ? '選択解除' : "Deselect") : (language === 'JP' ? '選択（Shift+クリックで範囲複数選択）' : "Select (Shift+Click for range)")}
                             >
                               {isSelected ? <CheckSquare size={13} className="text-text-bright" /> : <Square size={13} />}
                             </button>
@@ -1436,10 +1394,10 @@ export default function NotebookList({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openLink(nb.url, { mode: 'window', preset: windowSizePreset, customDimensions });
+                                openLink(nb.url);
                               }}
                               className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
-                              title={language === 'JP' ? '独立ウィンドウで開く' : 'Open in standalone window'}
+                              title={language === 'JP' ? 'ウィンドウで開く (1920×1100)' : 'Open in window (1920x1100)'}
                             >
                               <AppWindow size={12} />
                             </button>

@@ -7,11 +7,12 @@ import IconModal from './components/IconModal';
 import { Category, Notebook } from './types';
 import { Language } from './i18n';
 import { parseNetscapeBookmarks } from './utils/bookmarkParser';
-import { CheckCircle2, X, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, X, AlertTriangle, FolderTree, Bookmark } from 'lucide-react';
 import { i18n } from './i18n';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { BookmarkletModal } from './components/BookmarkletModal';
 import { IncomingBookmarkModal } from './components/IncomingBookmarkModal';
+import { FolderManager } from './components/FolderManager';
 import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
 
 export type Theme = 'black' | 'red' | 'dark' | 'light';
@@ -69,12 +70,25 @@ export default function App() {
   });
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
-  const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
   const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState<boolean>(false);
+  const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
+
+  // メイン画面の表示モード (ブックマーク一覧 'bookmarks' / フォルダー管理 'folders')
+  const [mainView, setMainView] = useState<'bookmarks' | 'folders'>('bookmarks');
+
+  // サイドバーの位置 (左 left / 右 right)
   const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>(() => {
     const saved = localStorage.getItem('sidebar_position');
     return saved === 'right' ? 'right' : 'left';
   });
+
+  const toggleSidebarPosition = () => {
+    setSidebarPosition(prev => {
+      const next = prev === 'left' ? 'right' : 'left';
+      localStorage.setItem('sidebar_position', next);
+      return next;
+    });
+  };
 
   // テキストサイズ設定 (localStorageに保存・復元)
   const [listFontSize, setListFontSize] = useState<number>(() => {
@@ -126,18 +140,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
-
-    // モバイルブラウザ・PWAバー用メタテーマカラー（theme-color）の動的リアルタイム同期
-    const themeColors: Record<Theme, string> = {
-      black: '#0c0d0e',
-      dark: '#090f19',
-      red: '#0d0606',
-      light: '#e2e8f0'
-    };
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', themeColors[theme] || '#0c0d0e');
-    }
   }, [theme]);
 
   useEffect(() => {
@@ -341,6 +343,122 @@ export default function App() {
     }
   };
 
+  const moveCategoryOrder = (categoryId: string, direction: 'top' | 'up' | 'down' | 'bottom') => {
+    const cat = categories.find(c => c.id === categoryId);
+    if (!cat) return;
+
+    const parentId = cat.parentId || null;
+    const siblings = categories.filter(c => (c.parentId || null) === parentId);
+    const siblingIndex = siblings.findIndex(c => c.id === categoryId);
+    if (siblingIndex === -1) return;
+
+    let targetIndex = siblingIndex;
+    if (direction === 'top') targetIndex = 0;
+    else if (direction === 'up') targetIndex = Math.max(0, siblingIndex - 1);
+    else if (direction === 'down') targetIndex = Math.min(siblings.length - 1, siblingIndex + 1);
+    else if (direction === 'bottom') targetIndex = siblings.length - 1;
+
+    if (targetIndex === siblingIndex) return;
+
+    const reorderedSiblings = [...siblings];
+    const [moved] = reorderedSiblings.splice(siblingIndex, 1);
+    reorderedSiblings.splice(targetIndex, 0, moved);
+
+    let sibIdx = 0;
+    const newCategories = categories.map(c => {
+      if ((c.parentId || null) === parentId) {
+        return reorderedSiblings[sibIdx++];
+      }
+      return c;
+    });
+
+    setCategories(newCategories);
+  };
+
+  const reorderCategorySiblings = (parentId: string | null, sourceIndex: number, targetIndex: number) => {
+    if (sourceIndex === targetIndex) return;
+    const siblings = categories.filter(c => (c.parentId || null) === parentId);
+    if (sourceIndex < 0 || sourceIndex >= siblings.length || targetIndex < 0 || targetIndex >= siblings.length) return;
+
+    const reorderedSiblings = [...siblings];
+    const [moved] = reorderedSiblings.splice(sourceIndex, 1);
+    reorderedSiblings.splice(targetIndex, 0, moved);
+
+    let sibIdx = 0;
+    const newCategories = categories.map(c => {
+      if ((c.parentId || null) === parentId) {
+        return reorderedSiblings[sibIdx++];
+      }
+      return c;
+    });
+
+    setCategories(newCategories);
+  };
+
+  const changeParentCategory = (categoryId: string, newParentId: string | null) => {
+    const cat = categories.find(c => c.id === categoryId);
+    if (!cat) return;
+    if ((cat.parentId || null) === newParentId) return;
+
+    const descendantIds = getCategoryDescendantIds(categoryId);
+    if (newParentId && descendantIds.has(newParentId)) {
+      return;
+    }
+
+    const newParent = newParentId ? categories.find(c => c.id === newParentId) : null;
+    const newPath = newParent ? `${newParent.path || newParent.name} / ${cat.name}` : cat.name;
+    const oldPathPrefix = cat.path || cat.name;
+
+    const updated = categories.map(c => {
+      if (c.id === categoryId) {
+        return {
+          ...c,
+          parentId: newParentId || null,
+          path: newPath
+        };
+      }
+      if (c.path && c.path.startsWith(oldPathPrefix + ' / ')) {
+        const subPath = c.path.slice((oldPathPrefix + ' / ').length);
+        return { ...c, path: `${newPath} / ${subPath}` };
+      }
+      return c;
+    });
+
+    setCategories(updated);
+  };
+
+  const sortCategorySiblings = (parentId: string | null, mode: 'name-asc' | 'count-desc') => {
+    const directCounts = new Map<string, number>();
+    if (mode === 'count-desc') {
+      for (const nb of notebooks) {
+        if (nb.categoryId) {
+          directCounts.set(nb.categoryId, (directCounts.get(nb.categoryId) || 0) + 1);
+        }
+      }
+    }
+
+    const siblings = categories.filter(c => (c.parentId || null) === parentId);
+    const sortedSiblings = [...siblings].sort((a, b) => {
+      if (mode === 'name-asc') {
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else {
+        const countA = directCounts.get(a.id) || 0;
+        const countB = directCounts.get(b.id) || 0;
+        return countB - countA;
+      }
+    });
+
+    let sibIdx = 0;
+    const newCategories = categories.map(c => {
+      if ((c.parentId || null) === parentId) {
+        return sortedSiblings[sibIdx++];
+      }
+      return c;
+    });
+
+    setCategories(newCategories);
+  };
+
   const addNotebooks = (items: {title: string, url: string, categoryId: string}[]) => {
     const newNotebooks = items.map((item, index) => ({
       id: Date.now().toString(36) + '_' + index,
@@ -393,6 +511,61 @@ export default function App() {
       updated.splice(targetIdx, 0, movedItem);
       return updated;
     });
+  };
+
+  /**
+   * カオルさまご指定: ブックマークを複数選択して上下・最上部・最下部へ移動
+   * Shift選択等で複数選ばれた項目をまとめて移動します
+   */
+  const moveNotebooksOrder = (
+    selectedIds: string[],
+    direction: 'top' | 'up' | 'down' | 'bottom',
+    contextIds: string[]
+  ) => {
+    if (selectedIds.length === 0 || contextIds.length <= 1) return;
+
+    const selSet = new Set(selectedIds);
+    let newContextOrder = [...contextIds];
+
+    if (direction === 'top') {
+      const selectedItems = newContextOrder.filter(id => selSet.has(id));
+      const unselectedItems = newContextOrder.filter(id => !selSet.has(id));
+      newContextOrder = [...selectedItems, ...unselectedItems];
+    } else if (direction === 'bottom') {
+      const selectedItems = newContextOrder.filter(id => selSet.has(id));
+      const unselectedItems = newContextOrder.filter(id => !selSet.has(id));
+      newContextOrder = [...unselectedItems, ...selectedItems];
+    } else if (direction === 'up') {
+      for (let i = 1; i < newContextOrder.length; i++) {
+        if (selSet.has(newContextOrder[i]) && !selSet.has(newContextOrder[i - 1])) {
+          const temp = newContextOrder[i];
+          newContextOrder[i] = newContextOrder[i - 1];
+          newContextOrder[i - 1] = temp;
+        }
+      }
+    } else if (direction === 'down') {
+      for (let i = newContextOrder.length - 2; i >= 0; i--) {
+        if (selSet.has(newContextOrder[i]) && !selSet.has(newContextOrder[i + 1])) {
+          const temp = newContextOrder[i];
+          newContextOrder[i] = newContextOrder[i + 1];
+          newContextOrder[i + 1] = temp;
+        }
+      }
+    }
+
+    // 全体のnotebooksに順序を反映
+    const contextSet = new Set(contextIds);
+    const nbMap = new Map(notebooks.map(nb => [nb.id, nb]));
+    let contextIdx = 0;
+    const updatedNotebooks = notebooks.map(nb => {
+      if (contextSet.has(nb.id)) {
+        const targetId = newContextOrder[contextIdx++];
+        return nbMap.get(targetId) || nb;
+      }
+      return nb;
+    });
+
+    setNotebooks(updatedNotebooks);
   };
 
   const handleExportJson = () => {
@@ -594,7 +767,10 @@ export default function App() {
         onUpdateCategory={updateCategory}
         onDeleteCategory={deleteCategory}
         activeCategory={activeCategoryId}
-        onSelectCategory={setActiveCategoryId}
+        onSelectCategory={(id) => {
+          setActiveCategoryId(id);
+          setMainView('bookmarks');
+        }}
         onDropNotebooksToCategory={moveNotebooksToCategory}
         language={language}
         onExportJson={handleExportJson}
@@ -604,6 +780,8 @@ export default function App() {
         listFontSize={listFontSize}
         onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
         sidebarPosition={sidebarPosition}
+        onOpenFolderManager={() => setMainView(prev => prev === 'folders' ? 'bookmarks' : 'folders')}
+        isFolderManagerActive={mainView === 'folders'}
       />
 
       <main className="flex-1 p-4 md:p-6 flex flex-col gap-4 max-h-screen overflow-hidden">
@@ -618,54 +796,105 @@ export default function App() {
           onListFontSizeChange={setListFontSize}
           linkFontSize={linkFontSize}
           onLinkFontSizeChange={setLinkFontSize}
+          onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
+          sidebarPosition={sidebarPosition}
+          onToggleSidebarPosition={toggleSidebarPosition}
           onOpenIconModal={() => setIsIconModalOpen(true)}
         />
 
-        {/* アイコン変更 / 専用アイコン保管庫 モーダル */}
-        <IconModal 
-          isOpen={isIconModalOpen} 
-          onClose={() => setIsIconModalOpen(false)} 
-          language={language} 
-        />
-        
-        {/* 02 検索＆フィルターモジュール */}
-        <SearchModule
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchScope={searchScope}
-          onScopeChange={setSearchScope}
-          totalFilteredCount={filteredNotebooks.length}
-          totalPoolCount={activePool.length}
-          activeCategoryName={currentCategoryName}
-          language={language}
-        />
+        {/* メイン画面 ビュー切り替えタブ（03 ブックマーク一覧 / 04 フォルダー管理） */}
+        <div className="flex items-center justify-between shrink-0">
+          <div className="flex border border-border-main bg-panel-bg shadow-xs">
+            <button
+              type="button"
+              onClick={() => setMainView('bookmarks')}
+              className={`px-3.5 py-1.5 text-[10px] font-mono font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
+                mainView === 'bookmarks'
+                  ? 'bg-border-light text-text-bright border-r border-border-light shadow-inner'
+                  : 'text-text-dim hover:text-text-bright border-r border-border-main hover:bg-border-main/30'
+              }`}
+            >
+              <Bookmark size={11} className={mainView === 'bookmarks' ? 'text-accent-text' : ''} />
+              <span>03 {t.bookmarksView}</span>
+              <span className="text-[9px] font-normal opacity-70">[{notebooks.length}]</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainView('folders')}
+              className={`px-3.5 py-1.5 text-[10px] font-mono font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
+                mainView === 'folders'
+                  ? 'bg-border-light text-text-bright shadow-inner'
+                  : 'text-text-dim hover:text-text-bright hover:bg-border-main/30'
+              }`}
+            >
+              <FolderTree size={11} className={mainView === 'folders' ? 'text-accent-text' : ''} />
+              <span>04 {t.folderManager}</span>
+              <span className="text-[9px] font-normal opacity-70">[{categories.length}]</span>
+            </button>
+          </div>
+        </div>
 
-        {/* 03 データバンク（ブックマーク一覧・インライン追加・編集・削除） */}
-        <NotebookList 
-          notebooks={filteredNotebooks} 
-          allNotebooks={notebooks}
-          categories={categories} 
-          activeCategoryId={activeCategoryId}
-          includeSubfolders={includeSubfolders}
-          onToggleIncludeSubfolders={setIncludeSubfolders}
-          onSelectCategory={setActiveCategoryId}
-          onDelete={deleteNotebooks} 
-          onDeleteCategory={deleteCategory}
-          onUpdate={updateNotebook}
-          onMoveNotebooks={moveNotebooksToCategory}
-          onReorder={reorderNotebooks}
-          onAdd={addNotebooks}
-          searchQuery={searchQuery}
-          language={language} 
-          listFontSize={listFontSize}
-          linkFontSize={linkFontSize}
-          linkOpenMode={linkOpenMode}
-          onLinkOpenModeChange={setLinkOpenMode}
-          windowSizePreset={windowSizePreset}
-          onWindowSizePresetChange={setWindowSizePreset}
-          customDimensions={customDimensions}
-          onCustomDimensionsChange={setCustomDimensions}
-        />
+        {mainView === 'folders' ? (
+          <FolderManager
+            categories={categories}
+            notebooks={notebooks}
+            onAddCategory={addCategory}
+            onUpdateCategory={updateCategory}
+            onDeleteCategory={deleteCategory}
+            onChangeParentCategory={changeParentCategory}
+            onMoveCategoryOrder={moveCategoryOrder}
+            onReorderCategorySiblings={reorderCategorySiblings}
+            onSortCategorySiblings={sortCategorySiblings}
+            onSelectCategory={(id) => {
+              setActiveCategoryId(id);
+              setMainView('bookmarks');
+            }}
+            onClose={() => setMainView('bookmarks')}
+            language={language}
+          />
+        ) : (
+          <>
+            {/* 02 検索＆フィルターモジュール */}
+            <SearchModule
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchScope={searchScope}
+              onScopeChange={setSearchScope}
+              totalFilteredCount={filteredNotebooks.length}
+              totalPoolCount={activePool.length}
+              activeCategoryName={currentCategoryName}
+              language={language}
+            />
+
+            {/* 03 データバンク（ブックマーク一覧・インライン追加・編集・削除） */}
+            <NotebookList 
+              notebooks={filteredNotebooks} 
+              allNotebooks={notebooks}
+              categories={categories} 
+              activeCategoryId={activeCategoryId}
+              includeSubfolders={includeSubfolders}
+              onToggleIncludeSubfolders={setIncludeSubfolders}
+              onSelectCategory={setActiveCategoryId}
+              onDelete={deleteNotebooks} 
+              onDeleteCategory={deleteCategory}
+              onUpdate={updateNotebook}
+              onMoveNotebooks={moveNotebooksToCategory}
+              onReorder={reorderNotebooks}
+              onMoveOrder={moveNotebooksOrder}
+              onAdd={addNotebooks}
+              searchQuery={searchQuery}
+              language={language} 
+              listFontSize={listFontSize}
+              linkFontSize={linkFontSize}
+              linkOpenMode={linkOpenMode}
+              onLinkOpenModeChange={setLinkOpenMode}
+              windowSizePreset={windowSizePreset}
+              onWindowSizePresetChange={setWindowSizePreset}
+              customDimensions={customDimensions}
+              onCustomDimensionsChange={setCustomDimensions}
+            />
+          </>
+        )}
         
         {/* PWA オフライン状態インジケーター */}
         <OfflineIndicator language={language} />
@@ -689,6 +918,13 @@ export default function App() {
         language={language}
         onSave={handleSaveIncomingBookmark}
         onCancel={() => setIncomingBookmark(null)}
+      />
+
+      {/* アイコン変更 / 専用アイコン保管庫 モーダル */}
+      <IconModal 
+        isOpen={isIconModalOpen} 
+        onClose={() => setIsIconModalOpen(false)} 
+        language={language} 
       />
     </div>
   );

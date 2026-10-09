@@ -12,62 +12,23 @@ interface WindowOpenOptions {
   customDimensions?: CustomWindowDimensions;
 }
 
-export function openLink(url: string, options: WindowOpenOptions = {}): void {
-  const { mode = 'window', preset = 'standard', customDimensions } = options;
+/**
+ * リンクを開く処理
+ * カオルさまご指定仕様:
+ * - オープン方式: 独立ウィンドウ固定
+ * - サイズ: 1920 × 1100 固定
+ */
+export function openLink(url: string, _options?: WindowOpenOptions): void {
+  // カオルさまご指定: 固定サイズ 1920 × 1100
+  const targetW = 1920;
+  const targetH = 1100;
 
-  // タブモードの場合は標準の新しいタブで開く
-  if (mode === 'tab') {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    return;
-  }
+  const screenW = typeof window !== 'undefined' ? (window.screen.availWidth || window.innerWidth || 1920) : 1920;
+  const screenH = typeof window !== 'undefined' ? (window.screen.availHeight || window.innerHeight || 1080) : 1080;
 
-  // 独立ウィンドウモード
-  const screenW = typeof window !== 'undefined' ? (window.screen.availWidth || window.innerWidth) : 1920;
-  const screenH = typeof window !== 'undefined' ? (window.screen.availHeight || window.innerHeight) : 1080;
-
-  // プリセットごとの基準サイズ
-  let targetW: number;
-  let targetH: number;
-
-  switch (preset) {
-    case 'compact':
-      targetW = 1040;
-      targetH = 760;
-      break;
-    case 'wide':
-      targetW = 1440;
-      targetH = 960;
-      break;
-    case 'ultra':
-      // 特大サイズ
-      targetW = 1680;
-      targetH = 1020;
-      break;
-    case 'fhd':
-      // カオルさまご指定: 超特大 1920 × 1100
-      targetW = 1920;
-      targetH = 1100;
-      break;
-    case 'max':
-      // 画面最大化
-      targetW = Math.round(screenW * 0.98);
-      targetH = Math.round(screenH * 0.96);
-      break;
-    case 'custom':
-      targetW = customDimensions?.width || 1560;
-      targetH = customDimensions?.height || 980;
-      break;
-    case 'standard':
-    default:
-      // デスクトップサイト（株探、各種ポータル等）が綺麗に収まる標準
-      targetW = 1280;
-      targetH = 880;
-      break;
-  }
-
-  // 画面の98%まで許容し、大画面ストリートビューやFHDウィンドウにもフル対応
-  const width = Math.min(targetW, Math.max(640, Math.round(screenW * 0.98)));
-  const height = Math.min(targetH, Math.max(480, Math.round(screenH * 0.96)));
+  // 画面の有効領域に収まるように調整
+  const width = Math.min(targetW, screenW);
+  const height = Math.min(targetH, screenH);
 
   // 画面中央に配置
   const left = Math.max(0, Math.round((screenW - width) / 2));
@@ -95,3 +56,4 @@ export function openLink(url: string, options: WindowOpenOptions = {}): void {
     newWindow.focus();
   }
 }
+

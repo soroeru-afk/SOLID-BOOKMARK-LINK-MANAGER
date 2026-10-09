@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Palette, Sliders, Image } from 'lucide-react';
+import { Type, ChevronDown, Palette, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight, Image } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
@@ -15,7 +15,10 @@ interface Props {
   onListFontSizeChange: (size: number) => void;
   linkFontSize: number;
   onLinkFontSizeChange: (size: number) => void;
-  onOpenIconModal: () => void;
+  onOpenBookmarklet?: () => void;
+  onOpenIconModal?: () => void;
+  sidebarPosition?: 'left' | 'right';
+  onToggleSidebarPosition?: () => void;
 }
 
 const THEMES: Theme[] = ['black', 'red', 'dark', 'light'];
@@ -31,7 +34,10 @@ export default function Header({
   onListFontSizeChange,
   linkFontSize,
   onLinkFontSizeChange,
-  onOpenIconModal
+  onOpenBookmarklet,
+  onOpenIconModal,
+  sidebarPosition = 'left',
+  onToggleSidebarPosition
 }: Props) {
   const t = i18n[language];
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -196,18 +202,56 @@ export default function Header({
               </button>
             </div>
 
-            {/* アイコン変更モーダル起動ボタン */}
-            <button 
-              type="button"
-              onClick={onOpenIconModal}
-              className="flex items-center gap-1.5 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0"
-              title={language === 'JP' ? 'アイコン変更 / 専用アイコン保管庫を表示' : 'Change Icon / Open Icon Vault'}
-            >
-              <Image size={12} className="text-text-dim shrink-0" />
-              <span className="text-text-bright font-bold font-mono text-[10px]">
-                {language === 'JP' ? 'アイコン変更' : 'ICON'}
-              </span>
-            </button>
+            {/* 新規追加コントロール群（Side Change / 1クリック保存 / アイコン変更 / 全画面切り替え） */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* サイドバー左右移動（Side Change）ボタン */}
+              {onToggleSidebarPosition && (
+                <button
+                  type="button"
+                  onClick={onToggleSidebarPosition}
+                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                  title={sidebarPosition === 'left' 
+                    ? (language === 'JP' ? 'サイドバーを右側へ移動 (Side Change)' : 'Move Sidebar to Right') 
+                    : (language === 'JP' ? 'サイドバーを左側へ移動 (Side Change)' : 'Move Sidebar to Left')}
+                >
+                  {sidebarPosition === 'left' ? <PanelRight size={13} /> : <PanelLeft size={13} />}
+                </button>
+              )}
+
+              {/* PC用 1クリック保存ボタン設定 */}
+              {onOpenBookmarklet && (
+                <button
+                  type="button"
+                  onClick={onOpenBookmarklet}
+                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                  title={language === 'JP' ? '1クリックWeb保存機能（ブックマークレット）の設定' : '1-Click Web Saver Setup'}
+                >
+                  <Bookmark size={13} />
+                </button>
+              )}
+
+              {/* アイコン変更ボタン */}
+              {onOpenIconModal && (
+                <button
+                  type="button"
+                  onClick={onOpenIconModal}
+                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                  title={language === 'JP' ? 'アイコン変更 / 専用アイコン保管庫を表示' : 'Change Icon / Open Icon Vault'}
+                >
+                  <Image size={13} />
+                </button>
+              )}
+
+              {/* フルスクリーン切り替えボタン */}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
+                title={isFullscreen ? (language === 'JP' ? '全画面表示を解除' : 'Exit Fullscreen') : (language === 'JP' ? '全画面表示（フルスクリーン）' : 'Toggle Fullscreen')}
+              >
+                {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              </button>
+            </div>
 
             {/* PWA インストールボタン */}
             <PWAInstallButton language={language} />

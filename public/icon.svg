@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#000000"/>
+  <g fill="#ffffff">
+    <!-- Capital Serif Letter 'L' -->
+    <path d="
+      M 104 70
+      H 288
+      C 272 78 266 94 266 122
+      V 386
+      C 266 406 280 416 320 416
+      C 366 416 418 376 444 326
+      L 456 338
+      C 434 402 376 442 300 442
+      H 104
+      C 126 432 142 418 142 386
+      V 122
+      C 142 90 126 78 104 70
+      Z
+    " />
+
+    <!-- 弓（Bow） -->
+    <!-- 弓の上弦・アーム -->
+    <path d="
+      M 242 86
+      C 230 110 248 136 264 154
+      C 292 186 316 218 316 256
+      C 316 294 292 326 264 358
+      C 248 376 230 402 242 426
+      C 252 444 234 446 226 432
+      C 214 412 232 380 252 356
+      C 280 322 302 292 302 256
+      C 302 220 280 190 252 156
+      C 232 132 214 100 226 80
+      C 234 66 252 68 242 86
+      Z
+    " />
+
+    <!-- 弓の弦（Bowstring） -->
+    <path d="
+      M 238 84
+      L 156 256
+      L 238 428
+      L 230 432
+      L 146 256
+      L 230 80
+      Z
+    " />
+
+    <!-- 矢のシャフト（Arrow Shaft） -->
+    <rect x="150" y="251" width="206" height="10" />
+
+    <!-- 矢じり（Arrowhead） -->
+    <polygon points="352,236 402,256 352,276" />
+
+    <!-- 電波 / 送信波（Radio / Signal Arcs） -->
+    <!-- 第1の波（内側） -->
+    <path d="
+      M 404 234
+      C 418 241 426 248 426 256
+      C 426 264 418 271 404 278
+      L 409 288
+      C 428 278 438 268 438 256
+      C 438 244 428 234 409 224
+      Z
+    " />
+    <!-- 第2の波（中） -->
+    <path d="
+      M 418 214
+      C 438 226 450 240 450 256
+      C 450 272 438 286 418 298
+      L 424 308
+      C 448 294 462 276 462 256
+      C 462 236 448 218 424 204
+      Z
+    " />
+    <!-- 第3の波（外側） -->
+    <path d="
+      M 432 194
+      C 458 212 474 233 474 256
+      C 474 279 458 300 432 318
+      L 438 328
+      C 468 308 486 283 486 256
+      C 486 229 468 204 438 184
+      Z
+    " />
+
+    <!-- 矢羽（Fletching: 斜め矢羽根パターン） -->
+    <g transform="translate(162, 233)">
+      <polygon points="12,0 24,0 12,18 0,18" />
+      <polygon points="26,0 38,0 26,18 14,18" />
+      <polygon points="40,0 52,0 40,18 28,18" />
+      <polygon points="12,46 24,46 12,28 0,28" />
+      <polygon points="26,46 38,46 26,28 14,28" />
+      <polygon points="40,46 52,46 40,28 28,28" />
+    </g>
+
+    <!-- 地球儀（Globe）の外枠と背景抜き -->
+    <circle cx="108" cy="256" r="46" fill="#000000" stroke="#ffffff" stroke-width="8" />
+
+    <!-- 経線（楕円） -->
+    <ellipse cx="108" cy="256" rx="28" ry="44" fill="none" stroke="#ffffff" stroke-width="4.5" />
+    <line x1="108" y1="212" x2="108" y2="300" stroke="#ffffff" stroke-width="4.5" />
+
+    <!-- 緯線 -->
+    <line x1="64" y1="256" x2="152" y2="256" stroke="#ffffff" stroke-width="4.5" />
+    <path d="M 72 238 Q 108 248 144 238" fill="none" stroke="#ffffff" stroke-width="4" />
+    <path d="M 72 274 Q 108 264 144 274" fill="none" stroke="#ffffff" stroke-width="4" />
+
+    <!-- 放射状のピン/ノード（ネットワークノード） -->
+    <!-- 1. 左上 135° -->
+    <line x1="75" y1="223" x2="52" y2="200" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="48" cy="196" r="7" />
+
+    <!-- 2. 上寄り左 115° -->
+    <line x1="88" y1="214" x2="74" y2="182" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="71" cy="176" r="7" />
+
+    <!-- 3. 上 90° -->
+    <line x1="108" y1="210" x2="108" y2="174" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="108" cy="168" r="7" />
+
+    <!-- 4. 上寄り右 65° -->
+    <line x1="128" y1="214" x2="142" y2="182" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="145" cy="176" r="7" />
+
+    <!-- 5. 右上 45° -->
+    <line x1="141" y1="223" x2="164" y2="200" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="168" cy="196" r="7" />
+
+    <!-- 6. 真左 180° -->
+    <line x1="62" y1="256" x2="26" y2="256" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="20" cy="256" r="7" />
+
+    <!-- 7. 左下 225° -->
+    <line x1="75" y1="289" x2="52" y2="312" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="48" cy="316" r="7" />
+
+    <!-- 8. 下寄り左 245° -->
+    <line x1="88" y1="298" x2="74" y2="330" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="71" cy="336" r="7" />
+
+    <!-- 9. 下 270° -->
+    <line x1="108" y1="302" x2="108" y2="338" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="108" cy="344" r="7" />
+
+    <!-- 10. 下寄り右 295° -->
+    <line x1="128" y1="298" x2="142" y2="330" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="145" cy="336" r="7" />
+
+    <!-- 11. 右下 315° -->
+    <line x1="141" y1="289" x2="164" y2="312" stroke="#ffffff" stroke-width="6" stroke-linecap="round" />
+    <circle cx="168" cy="316" r="7" />
+  </g>
+</svg>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { 
   LayoutGrid, Folders, Plus, Folder, FolderOpen, 
   Download, Upload, FileCode, Pencil, Trash2, RotateCcw,
-  ChevronRight, ChevronDown, ChevronsUpDown, FolderTree, Search, X, Bookmark
+  ChevronRight, ChevronDown, ChevronsUpDown, ChevronsDown, ChevronsUp, FolderTree, Search, X, Bookmark
 } from 'lucide-react';
 import { Category, Notebook } from '../types';
 import { Language, i18n } from '../i18n';
@@ -24,6 +24,8 @@ interface Props {
   listFontSize?: number;
   onOpenBookmarklet?: () => void;
   sidebarPosition?: 'left' | 'right';
+  onOpenFolderManager?: () => void;
+  isFolderManagerActive?: boolean;
 }
 
 interface CategoryTreeNode extends Category {
@@ -53,7 +55,9 @@ export default function Sidebar({
   onResetAllData,
   listFontSize = 11,
   onOpenBookmarklet,
-  sidebarPosition = 'left'
+  sidebarPosition = 'left',
+  onOpenFolderManager,
+  isFolderManagerActive = false
 }: Props) {
   // サイドバーの幅（localStorageで永続化）
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -170,7 +174,11 @@ export default function Sidebar({
   }, []);
 
   // activeCategory が変更された際、その先祖フォルダを自動展開して迷子を防止
+  const prevActiveCategoryRef = useRef<string | null>(activeCategory);
   useEffect(() => {
+    if (prevActiveCategoryRef.current === activeCategory) return;
+    prevActiveCategoryRef.current = activeCategory;
+
     if (!activeCategory || activeCategory === '__UNASSIGNED__') return;
     const catMap = new Map(categories.map(c => [c.id, c]));
     const ancestors: string[] = [];
@@ -650,13 +658,28 @@ export default function Sidebar({
                 <Plus size={12} /> {t.newDir}
               </button>
               <div className="flex gap-1 shrink-0">
+                {onOpenFolderManager && (
+                  <button
+                    type="button"
+                    onClick={onOpenFolderManager}
+                    className={`h-7 px-2 border text-[9px] font-mono tracking-wider flex items-center gap-1 cursor-pointer transition-colors ${
+                      isFolderManagerActive
+                        ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
+                        : 'border-border-main hover:border-border-light text-text-dim hover:text-text-bright'
+                    }`}
+                    title={language === 'JP' ? 'メイン画面でフォルダー管理・並び替えを開く' : 'Open Folder Manager in Main View'}
+                  >
+                    <FolderTree size={12} />
+                    <span className="font-bold">MGR</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={expandAll}
                   className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px]"
                   title={t.expandAll}
                 >
-                  <FolderTree size={12} />
+                  <ChevronsDown size={12} />
                 </button>
                 <button
                   type="button"
@@ -664,7 +687,7 @@ export default function Sidebar({
                   className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px]"
                   title={t.collapseAll}
                 >
-                  <ChevronsUpDown size={12} />
+                  <ChevronsUp size={12} />
                 </button>
               </div>
             </div>
