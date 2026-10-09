@@ -70,6 +70,11 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
+  const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState<boolean>(false);
+  const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>(() => {
+    const saved = localStorage.getItem('sidebar_position');
+    return saved === 'right' ? 'right' : 'left';
+  });
 
   // テキストサイズ設定 (localStorageに保存・復元)
   const [listFontSize, setListFontSize] = useState<number>(() => {
@@ -243,7 +248,7 @@ export default function App() {
       title: finalTitle,
       url: finalUrl,
       categoryId: finalCatId,
-      createdAt: new Date().toISOString()
+      createdAt: Date.now()
     };
 
     setNotebooks(prev => [newBookmark, ...prev]);
