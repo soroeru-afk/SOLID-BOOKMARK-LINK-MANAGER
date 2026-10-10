@@ -89,23 +89,8 @@ export default function Header({
     }
   };
 
-  const getHeaderThemeStyle = (th: Theme): string => {
-    switch (th) {
-      case 'red':
-        return 'border-red-900/60 bg-gradient-to-r from-[#180507] via-[#22070a] to-[#140406] shadow-[0_0_15px_rgba(185,28,28,0.15)]';
-      case 'dark':
-        return 'border-sky-900/60 bg-gradient-to-r from-[#0d1627] via-[#121f36] to-[#0a1120] shadow-[0_0_15px_rgba(56,189,248,0.15)]';
-      case 'black':
-        return 'border-zinc-800 bg-gradient-to-r from-[#111316] via-[#16191e] to-[#0e1013] shadow-[0_0_15px_rgba(0,0,0,0.4)]';
-      case 'light':
-        return 'border-slate-300 bg-gradient-to-r from-[#f1f5f9] via-[#f8fafc] to-[#e2e8f0] shadow-sm';
-      default:
-        return 'border-border-main bg-panel-bg';
-    }
-  };
-
   return (
-    <header className={`flex flex-wrap justify-between items-center w-full shrink-0 border p-3.5 relative gap-3 transition-all duration-300 ${getHeaderThemeStyle(theme)}`}>
+    <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-border-main bg-panel-bg p-3.5 relative gap-3 transition-colors duration-200">
         <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.6rem] ml-4 text-[10px] text-text-dim font-bold tracking-widest">
             {t.systemControl}
         </div>
