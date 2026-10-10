@@ -4,6 +4,8 @@
 @theme {
   --color-base-bg: var(--theme-base-bg);
   --color-panel-bg: var(--theme-panel-bg);
+  --color-header-bg: var(--theme-header-bg);
+  --color-header-border: var(--theme-header-border);
   --color-input-bg: var(--theme-input-bg);
   --color-border-main: var(--theme-border-main);
   --color-border-light: var(--theme-border-light);
@@ -19,6 +21,8 @@
 :root {
   --theme-base-bg: #e2e8f0;
   --theme-panel-bg: #f8fafc;
+  --theme-header-bg: #f1f5f9;
+  --theme-header-border: #94a3b8;
   --theme-input-bg: #ffffff;
   --theme-border-main: #b4c2d3;
   --theme-border-light: #64748b;
@@ -55,6 +59,8 @@
 [data-theme="dark"] {
   --theme-base-bg: #090f19;
   --theme-panel-bg: #101a2b;
+  --theme-header-bg: #16243b;
+  --theme-header-border: #37547d;
   --theme-input-bg: #0b1424;
   --theme-border-main: #1d304a;
   --theme-border-light: #2d486e;
@@ -68,6 +74,8 @@
 [data-theme="black"] {
   --theme-base-bg: #0c0d0e;
   --theme-panel-bg: #141619;
+  --theme-header-bg: #1c1f24;
+  --theme-header-border: #3b404b;
   --theme-input-bg: #181b20;
   --theme-border-main: #25282e;
   --theme-border-light: #3f444e;
@@ -82,6 +90,8 @@
   /* K-Navigator CRIMSON RED パレット */
   --theme-base-bg: #090203;
   --theme-panel-bg: #110406;
+  --theme-header-bg: #22080a;
+  --theme-header-border: #661a22;
   --theme-input-bg: #180608;
   --theme-border-main: #2f0c10;
   --theme-border-light: #52151c;

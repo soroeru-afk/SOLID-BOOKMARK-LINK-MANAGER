@@ -90,7 +90,7 @@ export default function Header({
   };
 
   return (
-    <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-border-main bg-panel-bg p-3.5 relative gap-3 transition-colors duration-200">
+    <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-header-border bg-header-bg p-3.5 relative gap-3 transition-colors duration-300 shadow-md">
         <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.6rem] ml-4 text-[10px] text-text-dim font-bold tracking-widest">
             {t.systemControl}
         </div>
