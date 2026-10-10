@@ -140,6 +140,20 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
+
+    // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR base-bg)
+    let themeColorHex = '#0a0d12'; // default black
+    if (theme === 'dark') themeColorHex = '#0d131f';
+    else if (theme === 'red') themeColorHex = '#0d0404';
+    else if (theme === 'light') themeColorHex = '#e2e8f0';
+
+    let metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (!metaTheme) {
+      metaTheme = document.createElement('meta');
+      metaTheme.setAttribute('name', 'theme-color');
+      document.head.appendChild(metaTheme);
+    }
+    metaTheme.setAttribute('content', themeColorHex);
   }, [theme]);
 
   useEffect(() => {
