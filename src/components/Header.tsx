@@ -175,10 +175,10 @@ export default function Header({
             <button 
               type="button"
               onClick={handleToggleTheme}
-              className="flex items-center gap-2 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0"
+              className="flex items-center gap-2 px-2.5 py-1 border border-border-light hover:border-text-bright bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0 shadow-xs"
               title={language === 'JP' ? 'クリックしてテーマ切り替え (BLACK → RED → NAVY → LIGHT)' : 'Click to cycle theme (BLACK → RED → NAVY → LIGHT)'}
             >
-              <Palette size={12} className="text-text-dim shrink-0" />
+              <Palette size={12} className="text-text-bright shrink-0" />
               <span className="text-text-dim shrink-0 font-mono">{t.theme}:</span>
               <span className="flex items-center gap-1.5 font-bold font-mono">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
@@ -190,13 +190,13 @@ export default function Header({
             <div className="flex border border-border-main rounded-xs text-[10px] overflow-hidden leading-none shrink-0 bg-base-bg font-mono">
               <button
                 onClick={() => onLanguageChange('EN')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-bright'}`}
               >
                 EN
               </button>
               <button
                 onClick={() => onLanguageChange('JP')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-bright'}`}
               >
                 JP
               </button>
