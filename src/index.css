@@ -18,15 +18,15 @@
 
 :root {
   --theme-base-bg: #e2e8f0;
-  --theme-panel-bg: #f8fafc;
+  --theme-panel-bg: #ffffff;
   --theme-input-bg: #ffffff;
-  --theme-border-main: #b4c2d3;
-  --theme-border-light: #64748b;
-  --theme-text-dim: #475569;
-  --theme-text-normal: #1e293b;
-  --theme-text-bright: #090d16;
-  --theme-accent-bg: #cbd5e1;
-  --theme-accent-text: #090d16;
+  --theme-border-main: #94a3b8;
+  --theme-border-light: #475569;
+  --theme-text-dim: #334155;
+  --theme-text-normal: #0f172a;
+  --theme-text-bright: #000000;
+  --theme-accent-bg: #475569;
+  --theme-accent-text: #ffffff;
 
   --app-font: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
@@ -50,6 +50,20 @@
 
 [data-font="biz"] {
   --app-font: "BIZ UDPGothic", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+}
+
+[data-theme="light"] {
+  /* 高コントラスト・インダストリアル LIGHT パレット（完全ニュートラルグレー基調・青ではなくグレー） */
+  --theme-base-bg: #e2e8f0;
+  --theme-panel-bg: #ffffff;
+  --theme-input-bg: #ffffff;
+  --theme-border-main: #94a3b8;
+  --theme-border-light: #475569;
+  --theme-text-dim: #334155;
+  --theme-text-normal: #0f172a;
+  --theme-text-bright: #000000;
+  --theme-accent-bg: #475569;
+  --theme-accent-text: #ffffff;
 }
 
 [data-theme="dark"] {
@@ -93,15 +107,15 @@
 }
 
 [data-theme="paper"] {
-  /* SOLID AUDIO PAPER パレット */
-  --theme-base-bg: #ece8e1;
-  --theme-panel-bg: #f5f2eb;
+  /* SOLID AUDIO PAPER パレット（ミュージックプレイヤー準拠の明瞭・高コントラストクラフトペーパー） */
+  --theme-base-bg: #ebe4d8;
+  --theme-panel-bg: #ffffff;
   --theme-input-bg: #ffffff;
-  --theme-border-main: #d2cbbe;
-  --theme-border-light: #a39b8c;
-  --theme-text-dim: #6e675f;
-  --theme-text-normal: #2c2825;
-  --theme-text-bright: #141210;
+  --theme-border-main: #b5a58e;
+  --theme-border-light: #73634f;
+  --theme-text-dim: #4c4235;
+  --theme-text-normal: #1c1813;
+  --theme-text-bright: #000000;
   --theme-accent-bg: #d9532f;
   --theme-accent-text: #ffffff;
 }

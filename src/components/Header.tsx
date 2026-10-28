@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight, Check, Image } from 'lucide-react';
+import { Type, ChevronDown, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight, Check } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
@@ -16,7 +16,6 @@ interface Props {
   linkFontSize: number;
   onLinkFontSizeChange: (size: number) => void;
   onOpenBookmarklet?: () => void;
-  onOpenIconModal?: () => void;
   sidebarPosition?: 'left' | 'right';
   onToggleSidebarPosition?: () => void;
 }
@@ -35,7 +34,6 @@ export default function Header({
   linkFontSize,
   onLinkFontSizeChange,
   onOpenBookmarklet,
-  onOpenIconModal,
   sidebarPosition = 'left',
   onToggleSidebarPosition
 }: Props) {
@@ -94,7 +92,7 @@ export default function Header({
       case 'black': return '#334155';
       case 'paper': return '#d9532f';
       case 'pink': return '#d0587e';
-      case 'light': return '#0284c7';
+      case 'light': return '#475569';
       case 'red': return '#ef4444';
       default: return '#94a3b8';
     }
@@ -102,7 +100,7 @@ export default function Header({
 
   return (
     <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-border-main bg-panel-bg p-3.5 relative gap-3">
-        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.6rem] ml-4 text-[10px] text-text-dim font-bold tracking-widest">
+        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.6rem] ml-4 text-[10px] text-text-bright font-bold tracking-widest border border-border-main font-mono shadow-2xs">
             {t.systemControl}
         </div>
         <div className="flex items-center gap-4">
@@ -279,18 +277,6 @@ export default function Header({
                   title={language === 'JP' ? '1クリックWeb保存機能（ブックマークレット）の設定' : '1-Click Web Saver Setup'}
                 >
                   <Bookmark size={13} />
-                </button>
-              )}
-
-              {/* アイコン変更ボタン */}
-              {onOpenIconModal && (
-                <button
-                  type="button"
-                  onClick={onOpenIconModal}
-                  className="w-7 h-7 flex items-center justify-center bg-base-bg border border-border-main hover:border-border-light text-text-dim hover:text-text-bright transition-colors cursor-pointer select-none rounded-xs shrink-0"
-                  title={language === 'JP' ? 'アイコン変更 / 専用アイコン保管庫を表示' : 'Change Icon / Open Icon Vault'}
-                >
-                  <Image size={13} />
                 </button>
               )}
 

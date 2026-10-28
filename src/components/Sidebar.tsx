@@ -659,18 +659,18 @@ export default function Sidebar({
       </div>
 
       {/* システムステータス */}
-      <div className="border border-border-main bg-panel-bg p-2.5 relative flex flex-col shrink-0">
-        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.55rem] ml-3 text-[9px] text-text-dim font-bold">
+      <div className="border border-border-main bg-panel-bg p-2.5 relative flex flex-col shrink-0 shadow-2xs">
+        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.55rem] ml-3 text-[9px] text-text-bright font-bold border border-border-main font-mono shadow-2xs">
           {t.systemStatus}
         </div>
         <div className="flex flex-col gap-1 text-[10px] text-text-dim mt-0.5">
           <div className="flex justify-between">
             <span>{t.coreNode}</span>
-            <span className="text-text-normal">{t.online}</span>
+            <span className="text-text-bright font-bold">{t.online}</span>
           </div>
           <div className="flex justify-between">
             <span>{t.dbConnection}</span>
-            <span className="text-text-normal">{t.established}</span>
+            <span className="text-text-bright font-bold">{t.established}</span>
           </div>
           <div className="flex justify-between">
             <span>{language === 'JP' ? 'Google Drive同期' : 'Drive App Sync'}</span>
@@ -680,8 +680,8 @@ export default function Sidebar({
       </div>
 
       {/* ディレクトリ一覧パネル */}
-      <div className="border border-border-main bg-panel-bg p-2.5 relative flex flex-col flex-1 min-h-[300px] overflow-hidden">
-        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.55rem] ml-3 text-[9px] text-text-dim font-bold">
+      <div className="border border-border-main bg-panel-bg p-2.5 relative flex flex-col flex-1 min-h-0 shadow-2xs">
+        <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.55rem] ml-3 text-[9px] text-text-bright font-bold border border-border-main font-mono shadow-2xs z-10">
           {t.directorySets}
         </div>
         

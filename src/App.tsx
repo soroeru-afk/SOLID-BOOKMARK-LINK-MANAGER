@@ -3,7 +3,6 @@ import Sidebar from './components/Sidebar';
 import SearchModule, { SearchScope } from './components/SearchModule';
 import NotebookList from './components/NotebookList';
 import Header from './components/Header';
-import IconModal from './components/IconModal';
 import { Category, Notebook } from './types';
 import { Language } from './i18n';
 import { parseNetscapeBookmarks } from './utils/bookmarkParser';
@@ -74,7 +73,6 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState<boolean>(false);
-  const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
 
   // メイン画面の表示モード (ブックマーク一覧 'bookmarks' / フォルダー管理 'folders')
   const [mainView, setMainView] = useState<'bookmarks' | 'folders'>('bookmarks');
@@ -190,11 +188,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
-    // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR base-bg)
+    // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR & SOLID AUDIO base-bg)
     let themeColorHex = '#0a0d12'; // default black
     if (theme === 'dark') themeColorHex = '#090f19';
     else if (theme === 'red') themeColorHex = '#090203';
-    else if (theme === 'paper') themeColorHex = '#ece8e1';
+    else if (theme === 'paper') themeColorHex = '#ebe4d8';
     else if (theme === 'pink') themeColorHex = '#141013';
     else if (theme === 'light') themeColorHex = '#e2e8f0';
 
@@ -534,22 +532,26 @@ export default function App() {
   };
 
   const handleCreateShortcut = (targetNotebook: Notebook, destinationCategoryId: string) => {
+    const realTargetId = (targetNotebook.isShortcut && targetNotebook.targetId) ? targetNotebook.targetId : targetNotebook.id;
+    const realTarget = notebooks.find(nb => nb.id === realTargetId) || targetNotebook;
+
     const shortcutNotebook: Notebook = {
       id: 'sc_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
-      title: targetNotebook.title,
-      url: targetNotebook.url,
+      title: realTarget.title,
+      url: realTarget.url,
+      color: realTarget.color, // コピー元の色を継承
       categoryId: destinationCategoryId,
       createdAt: Date.now(),
       isShortcut: true,
-      targetId: targetNotebook.id
+      targetId: realTargetId
     };
     setNotebooks(prev => [shortcutNotebook, ...prev]);
     const targetCatObj = categories.find(c => c.id === destinationCategoryId);
     const catName = targetCatObj ? (targetCatObj.path || targetCatObj.name) : (language === 'JP' ? '未割り当て' : 'Unassigned');
     setNotification(
       language === 'JP'
-        ? `「${targetNotebook.title}」のショートカットを「${catName}」フォルダに作成しました`
-        : `Created shortcut for "${targetNotebook.title}" in "${catName}"`
+        ? `「${realTarget.title}」のショートカットを『${catName}』フォルダに作成しました`
+        : `Created shortcut for "${realTarget.title}" in "${catName}"`
     );
   };
 
@@ -573,6 +575,7 @@ export default function App() {
         id: 'sc_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6) + '_' + Math.random().toString(36).substring(2, 5),
         title: realTarget.title,
         url: realTarget.url,
+        color: realTarget.color, // コピー元の色を継承
         categoryId: isUnassigned ? '' : destinationCategoryId,
         createdAt: Date.now(),
         isShortcut: true,
@@ -584,7 +587,7 @@ export default function App() {
       setNotebooks(prev => [...newShortcuts, ...prev]);
       setNotification(
         language === 'JP'
-          ? `${newShortcuts.length} 件のショートカットを「${destName}」フォルダに作成しました`
+          ? `${newShortcuts.length} 件のショートカットを『${destName}』フォルダに作成しました`
           : `Created ${newShortcuts.length} shortcut(s) in "${destName}"`
       );
     }
@@ -594,8 +597,26 @@ export default function App() {
     setNotebooks(notebooks.filter(nb => !ids.includes(nb.id)));
   };
 
+  /**
+   * カオルさまご指定: ショートカットと本体のカラー同期
+   * 本体またはショートカットのいずれかで色を変更した場合、双方が同じ色に自動連動します
+   */
   const updateNotebook = (id: string, updates: Partial<Notebook>) => {
-    setNotebooks(notebooks.map(nb => nb.id === id ? { ...nb, ...updates } : nb));
+    setNotebooks(prev => {
+      const targetItem = prev.find(nb => nb.id === id);
+      if (!targetItem) return prev;
+
+      // 対象がショートカットであれば本体ID、本体であれば自身を基準IDとする
+      const rootTargetId = (targetItem.isShortcut && targetItem.targetId) ? targetItem.targetId : id;
+
+      return prev.map(nb => {
+        // 本体 または その本体を参照するすべてのショートカット、または指定IDのアイテム
+        if (nb.id === rootTargetId || nb.targetId === rootTargetId || nb.id === id) {
+          return { ...nb, ...updates };
+        }
+        return nb;
+      });
+    });
   };
 
   const moveNotebooksToCategory = (notebookIds: string[], targetCategoryId: string) => {
@@ -954,7 +975,6 @@ export default function App() {
           onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
           sidebarPosition={sidebarPosition}
           onToggleSidebarPosition={toggleSidebarPosition}
-          onOpenIconModal={() => setIsIconModalOpen(true)}
         />
 
         {/* メイン画面 ビュー切り替えタブ（03 ブックマーク一覧 / 04 フォルダー管理） */}
@@ -965,7 +985,7 @@ export default function App() {
               onClick={() => setMainView('bookmarks')}
               className={`px-3.5 py-1.5 text-[10px] font-mono font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
                 mainView === 'bookmarks'
-                  ? 'bg-border-light text-text-bright border-r border-border-light shadow-inner'
+                  ? 'bg-border-light text-white border-r border-border-light shadow-inner'
                   : 'text-text-dim hover:text-text-bright border-r border-border-main hover:bg-border-main/30'
               }`}
             >
@@ -978,7 +998,7 @@ export default function App() {
               onClick={() => setMainView('folders')}
               className={`px-3.5 py-1.5 text-[10px] font-mono font-bold tracking-wider transition-colors cursor-pointer flex items-center gap-2 ${
                 mainView === 'folders'
-                  ? 'bg-border-light text-text-bright shadow-inner'
+                  ? 'bg-border-light text-white shadow-inner'
                   : 'text-text-dim hover:text-text-bright hover:bg-border-main/30'
               }`}
             >
@@ -1082,13 +1102,6 @@ export default function App() {
         onSave={handleSaveIncomingBookmark}
         onAddCategory={addCategory}
         onCancel={() => setIncomingBookmark(null)}
-      />
-
-      {/* アイコン変更 / 専用アイコン保管庫 モーダル */}
-      <IconModal 
-        isOpen={isIconModalOpen} 
-        onClose={() => setIsIconModalOpen(false)} 
-        language={language} 
       />
     </div>
   );

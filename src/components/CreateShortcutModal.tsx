@@ -46,7 +46,7 @@ export function CreateShortcutModal({
         
         {/* モーダルヘッダー */}
         <div className="flex items-center justify-between border-b border-border-main pb-2.5">
-          <div className="flex items-center gap-2 text-accent-text font-bold">
+          <div className="flex items-center gap-2 text-text-bright font-bold">
             <Link2 size={16} />
             <span className="text-xs tracking-wider">
               {language === 'JP' ? 'ショートカットの作成' : 'CREATE SHORTCUT'}
@@ -73,7 +73,7 @@ export function CreateShortcutModal({
             {language === 'JP' ? '【参照元本体ブックマーク】' : '[TARGET BOOKMARK]'}
           </div>
           <div className="text-[11px] font-bold text-text-bright truncate flex items-center gap-1.5">
-            <Globe size={12} className="text-accent-text shrink-0" />
+            <Globe size={12} className="text-text-dim shrink-0" />
             <span className="truncate">{targetNotebook.title}</span>
           </div>
           <div className="text-[9.5px] text-text-dim truncate">
@@ -85,7 +85,7 @@ export function CreateShortcutModal({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-text-bright flex items-center gap-1.5">
-              <Folder size={12} className="text-accent-text" />
+              <Folder size={12} className="text-text-dim" />
               <span>{language === 'JP' ? 'ショートカットの配置先フォルダ:' : 'Destination Folder:'}</span>
             </label>
             <select

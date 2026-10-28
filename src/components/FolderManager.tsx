@@ -347,7 +347,7 @@ export const FolderManager: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setIsAddingRoot(true)}
-              className="px-3 py-1.5 bg-border-light hover:bg-accent-bg text-text-bright hover:text-accent-text border border-border-light font-bold text-[10px] tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-border-light hover:bg-accent-bg text-white hover:text-white border border-border-light font-bold text-[10px] tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <FolderPlus size={12} />
               <span>{t.newRootFolder}</span>
@@ -750,7 +750,7 @@ export const FolderManager: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => handleSelectAndGo(node.id)}
-                      className="px-2.5 py-1 bg-border-light hover:bg-accent-bg text-text-bright hover:text-accent-text border border-border-light font-bold text-[9px] font-mono tracking-wider flex items-center gap-1 cursor-pointer transition-colors"
+                      className="px-2.5 py-1 bg-border-light hover:bg-accent-bg text-white hover:text-white border border-border-light font-bold text-[9px] font-mono tracking-wider flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                       title={language === 'JP' ? 'このフォルダを選択してブックマーク一覧を開く' : 'View bookmarks for this folder'}
                     >
                       <ExternalLink size={10} />
