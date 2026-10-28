@@ -1,8 +1,7 @@
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
-import {VitePWA} from 'vite-plugin-pwa';
+import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
@@ -17,7 +16,7 @@ export default defineConfig(() => {
           id: 'solid-bookmark-link-manager-app',
           name: 'SOLID BOOKMARK LINK MANAGER',
           short_name: 'SolidLinks',
-          description: 'ChromeやブラウザのブックマークHTMLを階層フォルダ構造を維持したまま取り込み・管理できるサイバーソリッド調のリンクマネージャー',
+          description: 'ChromeブラウザのブックマークHTML階層フォルダ構造を保持したまま取り込み・管理できるサイバーソリッドリンクマネージャー',
           theme_color: '#0a0d12',
           background_color: '#0a0d12',
           display: 'standalone',
@@ -27,9 +26,9 @@ export default defineConfig(() => {
             action: './',
             method: 'GET',
             params: {
-              title: 'add_title',
-              text: 'add_title',
-              url: 'add_url',
+              title: 'title',
+              text: 'text',
+              url: 'url',
             },
           },
           icons: [
@@ -55,24 +54,18 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          navigateFallbackDenylist: [/^\/api/],
+          runtimeCaching: [
+            {
+              urlPattern: /^\/api\/.*/i,
+              handler: 'NetworkOnly',
+            },
+          ],
         },
         devOptions: {
           enabled: true,
-          type: 'module',
         },
       }),
     ],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
   };
 });

@@ -30,6 +30,8 @@ interface Props {
   isFolderManagerActive?: boolean;
   colorPresets?: ColorPreset[];
   onUpdateColorPresets?: (presets: ColorPreset[]) => void;
+  showColors?: boolean;
+  onToggleShowColors?: () => void;
   showListColors?: boolean;
   onToggleShowListColors?: () => void;
   onResetAllColors?: () => void;
@@ -67,6 +69,8 @@ export default function Sidebar({
   isFolderManagerActive = false,
   colorPresets = [],
   onUpdateColorPresets,
+  showColors = true,
+  onToggleShowColors,
   showListColors = true,
   onToggleShowListColors,
   onResetAllColors
@@ -903,21 +907,22 @@ export default function Sidebar({
                 </button>
               </div>
 
-              {/* リスト表示でのカラー反映 ON/OFF */}
-              {onToggleShowListColors && (
+              {/* カードとリストのカラー反映 ON/OFF（全体のカラー反映） */}
+              {onToggleShowColors && (
                 <button
                   type="button"
-                  onClick={onToggleShowListColors}
+                  onClick={onToggleShowColors}
                   className="w-full h-6.5 px-2 flex items-center justify-between border border-border-main bg-base-bg hover:bg-border-main/50 text-[9px] font-bold cursor-pointer transition-colors rounded-xs"
+                  title={language === 'JP' ? 'カードとリスト全体のカラー反映のオン/オフ' : 'Toggle Card & List Color Reflection'}
                 >
                   <span className="flex items-center gap-1.5 text-text-bright">
                     <Palette size={11} className="text-accent-text" />
-                    <span>{language === 'JP' ? 'リスト表示でのカラー反映' : 'List Color Highlight'}</span>
+                    <span>{language === 'JP' ? 'カードとリストのカラー反映' : 'Card & List Color Reflection'}</span>
                   </span>
                   <span className={`w-20 inline-block text-center py-0.2 rounded-xs font-mono text-[8.5px] ${
-                    showListColors ? 'bg-accent-bg text-accent-text font-bold' : 'bg-border-main text-text-dim'
+                    showColors ? 'bg-accent-bg text-accent-text font-bold' : 'bg-border-main text-text-dim'
                   }`}>
-                    {showListColors ? (language === 'JP' ? 'ON (表示)' : 'ON') : (language === 'JP' ? 'OFF (非表示)' : 'OFF')}
+                    {showColors ? (language === 'JP' ? 'ON (表示)' : 'ON') : (language === 'JP' ? 'OFF (非表示)' : 'OFF')}
                   </span>
                 </button>
               )}

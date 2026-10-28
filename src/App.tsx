@@ -148,6 +148,20 @@ export default function App() {
     saveColorPresets(newPresets);
   };
 
+  // カードとリスト全体のカラー反映 表示・非表示ステート (localStorage永続化)
+  const [showColors, setShowColors] = useState<boolean>(() => {
+    const saved = localStorage.getItem('show_colors');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleShowColors = () => {
+    setShowColors(prev => {
+      const next = !prev;
+      localStorage.setItem('show_colors', String(next));
+      return next;
+    });
+  };
+
   // リスト表示でのカラー反映 表示・非表示ステート (localStorage永続化)
   const [showListColors, setShowListColors] = useState<boolean>(() => {
     const saved = localStorage.getItem('show_list_colors');
@@ -518,6 +532,63 @@ export default function App() {
     }));
     setNotebooks([...newNotebooks, ...notebooks]);
   };
+
+  const handleCreateShortcut = (targetNotebook: Notebook, destinationCategoryId: string) => {
+    const shortcutNotebook: Notebook = {
+      id: 'sc_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+      title: targetNotebook.title,
+      url: targetNotebook.url,
+      categoryId: destinationCategoryId,
+      createdAt: Date.now(),
+      isShortcut: true,
+      targetId: targetNotebook.id
+    };
+    setNotebooks(prev => [shortcutNotebook, ...prev]);
+    const targetCatObj = categories.find(c => c.id === destinationCategoryId);
+    const catName = targetCatObj ? (targetCatObj.path || targetCatObj.name) : (language === 'JP' ? '未割り当て' : 'Unassigned');
+    setNotification(
+      language === 'JP'
+        ? `「${targetNotebook.title}」のショートカットを「${catName}」フォルダに作成しました`
+        : `Created shortcut for "${targetNotebook.title}" in "${catName}"`
+    );
+  };
+
+  const handleBulkCreateShortcuts = (selectedIds: string[], destinationCategoryId: string) => {
+    if (selectedIds.length === 0) return;
+    const isUnassigned = destinationCategoryId === '__UNASSIGNED__' || destinationCategoryId === '';
+    const targetCat = isUnassigned ? null : categories.find(c => c.id === destinationCategoryId);
+    const destName = isUnassigned 
+      ? (language === 'JP' ? '未割り当て' : 'Unassigned') 
+      : (targetCat?.name || targetCat?.path || destinationCategoryId);
+
+    const newShortcuts: Notebook[] = [];
+    for (const id of selectedIds) {
+      const original = notebooks.find(nb => nb.id === id);
+      if (!original) continue;
+
+      const realTargetId = (original.isShortcut && original.targetId) ? original.targetId : original.id;
+      const realTarget = notebooks.find(nb => nb.id === realTargetId) || original;
+
+      newShortcuts.push({
+        id: 'sc_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6) + '_' + Math.random().toString(36).substring(2, 5),
+        title: realTarget.title,
+        url: realTarget.url,
+        categoryId: isUnassigned ? '' : destinationCategoryId,
+        createdAt: Date.now(),
+        isShortcut: true,
+        targetId: realTargetId
+      });
+    }
+
+    if (newShortcuts.length > 0) {
+      setNotebooks(prev => [...newShortcuts, ...prev]);
+      setNotification(
+        language === 'JP'
+          ? `${newShortcuts.length} 件のショートカットを「${destName}」フォルダに作成しました`
+          : `Created ${newShortcuts.length} shortcut(s) in "${destName}"`
+      );
+    }
+  };
   
   const deleteNotebooks = (ids: string[]) => {
     setNotebooks(notebooks.filter(nb => !ids.includes(nb.id)));
@@ -861,6 +932,8 @@ export default function App() {
         isFolderManagerActive={mainView === 'folders'}
         colorPresets={colorPresets}
         onUpdateColorPresets={handleUpdateColorPresets}
+        showColors={showColors}
+        onToggleShowColors={toggleShowColors}
         showListColors={showListColors}
         onToggleShowListColors={toggleShowListColors}
         onResetAllColors={handleResetAllColors}
@@ -976,9 +1049,12 @@ export default function App() {
               customDimensions={customDimensions}
               onCustomDimensionsChange={setCustomDimensions}
               colorPresets={colorPresets}
+              showColors={showColors}
               showListColors={showListColors}
               onToggleShowListColors={toggleShowListColors}
               onResetAllColors={handleResetAllColors}
+              onCreateShortcut={handleCreateShortcut}
+              onBulkCreateShortcuts={handleBulkCreateShortcuts}
             />
           </>
         )}

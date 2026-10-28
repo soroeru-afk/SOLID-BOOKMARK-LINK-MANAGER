@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, BookmarkPlus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown, X, Palette, Sliders } from 'lucide-react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, BookmarkPlus, GripVertical, AppWindow, ExternalLink, ChevronDown, ChevronUp, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown, X, Palette, Sliders, Link2 } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
 import { openLink, LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from '../utils/windowOpener';
 import { ColorPreset, getColorPresetById } from '../utils/colorPresets';
 import { getHierarchicalCategories, getCategoryIndentedLabel } from '../utils/categoryUtils';
+import { CreateShortcutModal } from './CreateShortcutModal';
 
 export type ViewMode = 'list' | 'grid';
 
@@ -54,9 +55,12 @@ interface Props {
   customDimensions?: CustomWindowDimensions;
   onCustomDimensionsChange?: (dims: CustomWindowDimensions) => void;
   colorPresets?: ColorPreset[];
+  showColors?: boolean;
   showListColors?: boolean;
   onToggleShowListColors?: () => void;
   onResetAllColors?: () => void;
+  onCreateShortcut?: (targetNotebook: Notebook, destinationCategoryId: string) => void;
+  onBulkCreateShortcuts?: (selectedIds: string[], destinationCategoryId: string) => void;
 }
 
 export default function NotebookList({ 
@@ -86,13 +90,17 @@ export default function NotebookList({
   customDimensions = { width: 1560, height: 980 },
   onCustomDimensionsChange,
   colorPresets,
+  showColors = true,
   showListColors = true,
   onToggleShowListColors,
-  onResetAllColors
+  onResetAllColors,
+  onCreateShortcut,
+  onBulkCreateShortcuts
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [shortcutTargetNb, setShortcutTargetNb] = useState<Notebook | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editUrl, setEditUrl] = useState('');
   const [editCategoryId, setEditCategoryId] = useState('');
@@ -100,7 +108,21 @@ export default function NotebookList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [bulkMoveTargetCategory, setBulkMoveTargetCategory] = useState<string>('');
 
-  // カード表示サイズ（スライダー）
+  
+  const [isSubfoldersOpen, setIsSubfoldersOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('subfolders_panel_open');
+    return saved !== null ? saved === 'true' : false;
+  });
+
+  const toggleSubfoldersOpen = () => {
+    setIsSubfoldersOpen(prev => {
+      const next = !prev;
+      localStorage.setItem('subfolders_panel_open', String(next));
+      return next;
+    });
+  };
+
+  
   const [cardSize, setCardSize] = useState<number>(() => {
     const saved = localStorage.getItem('grid_card_size');
     const parsed = saved ? parseInt(saved, 10) : 240;
@@ -111,10 +133,10 @@ export default function NotebookList({
     localStorage.setItem('grid_card_size', String(cardSize));
   }, [cardSize]);
 
-  // アクティブなカラーピッカーのID
+  
   const [activeColorPickerId, setActiveColorPickerId] = useState<string | null>(null);
 
-  // ビューモード（リスト表示 / カード表示）
+  
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('bookmark_view_mode');
     return (saved === 'grid' || saved === 'list') ? saved : 'list';
@@ -124,7 +146,7 @@ export default function NotebookList({
     localStorage.setItem('bookmark_view_mode', viewMode);
   }, [viewMode]);
 
-  // リスト表示のカラム幅ステート（ローカルストレージ永続化）
+  
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => {
     try {
       const saved = localStorage.getItem('solid_col_widths');
@@ -137,7 +159,7 @@ export default function NotebookList({
         };
       }
     } catch {
-      // ignore
+      
     }
     return DEFAULT_COLUMN_WIDTHS;
   });
@@ -168,7 +190,7 @@ export default function NotebookList({
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!resizingRef.current) return;
       const delta = moveEvent.clientX - resizingRef.current.startX;
-      // タイトルの右仕切り線を右に引っ張ると、ソース幅を縮めてタイトルを広げる
+      
       const adjustedDelta = resizingRef.current.isInverse ? -delta : delta;
       const newWidth = Math.max(
         MIN_COLUMN_WIDTHS[resizingRef.current.targetKey],
@@ -179,7 +201,7 @@ export default function NotebookList({
         try {
           localStorage.setItem('solid_col_widths', JSON.stringify(updated));
         } catch {
-          // ignore
+          
         }
         return updated;
       });
@@ -205,7 +227,7 @@ export default function NotebookList({
     try {
       localStorage.removeItem('solid_col_widths');
     } catch {
-      // ignore
+      
     }
   };
 
@@ -220,14 +242,14 @@ export default function NotebookList({
     }
   };
 
-  // 初回スクロール位置に応じた初期件数の計算（スクロール位置復元用）
+  
   const [visibleCount, setVisibleCount] = useState(() => {
     const saved = localStorage.getItem('notebook_list_scroll_top');
     const top = saved ? parseInt(saved, 10) : 0;
     return top > 0 ? Math.max(80, Math.ceil((top + 1500) / 40)) : 80;
   });
 
-  // ドラッグ＆ドロップ用ステート
+  
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   
@@ -237,7 +259,7 @@ export default function NotebookList({
 
   const t = i18n[language];
 
-  // 初回マウント時に保存されたスクロール位置を復元
+  
   useEffect(() => {
     const savedScroll = localStorage.getItem('notebook_list_scroll_top');
     if (savedScroll && listContainerRef.current) {
@@ -252,7 +274,7 @@ export default function NotebookList({
     }
   }, []);
 
-  // ユーザーが能動的にフォルダや検索条件を変更した時のみスクロールと件数をリセット
+  
   useEffect(() => {
     if (prevCategoryRef.current !== activeCategoryId || prevSearchRef.current !== searchQuery) {
       prevCategoryRef.current = activeCategoryId;
@@ -265,10 +287,10 @@ export default function NotebookList({
     }
   }, [activeCategoryId, searchQuery]);
 
-  // カテゴリマップ
+  
   const catMap = useMemo(() => new Map<string, Category>(categories.map(c => [c.id, c])), [categories]);
 
-  // 各カテゴリ配下のアイテム総数を計算（直接＋全サブフォルダ内）
+  
   const folderTotalCounts = useMemo(() => {
     const directCounts = new Map<string, number>();
     for (const nb of allNotebooks) {
@@ -304,8 +326,8 @@ export default function NotebookList({
     return memo;
   }, [categories, allNotebooks]);
 
-  // 現在選択されているフォルダの直下にあるサブフォルダ一覧
-  // カオルさまのご要望：中身が空（直接のアイテムもサブフォルダ内のアイテムも0件）のフォルダはカード表示しない
+  
+  
   const currentSubCategories = useMemo(() => {
     let list: Category[];
     if (activeCategoryId === '__UNASSIGNED__') return [];
@@ -314,7 +336,7 @@ export default function NotebookList({
     } else {
       list = categories.filter(c => c.parentId === activeCategoryId);
     }
-    // アイテム総数が0件のフォルダ（区切り線目的などの空フォルダ）は除外
+    
     return list.filter(sub => {
       const count = folderTotalCounts.get(sub.id) || 0;
       return count > 0;
@@ -333,7 +355,7 @@ export default function NotebookList({
     return c ? c.name : t.unassigned;
   };
 
-  // パンくずリスト用の階層配列を取得
+  
   const breadcrumbs = useMemo((): Category[] => {
     if (!activeCategoryId || activeCategoryId === '__UNASSIGNED__') return [];
     const crumbs: Category[] = [];
@@ -354,7 +376,7 @@ export default function NotebookList({
     );
   }, [notebooks, searchQuery]);
 
-  // 高速なインクリメンタル描画スライス
+  
   const displayedNotebooks = useMemo(() => {
     return filteredNotebooks.slice(0, visibleCount);
   }, [filteredNotebooks, visibleCount]);
@@ -374,7 +396,7 @@ export default function NotebookList({
   };
 
   const handleOpenLink = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
-    // Ctrl / Cmd / Shift クリックはブラウザ本来のタブ動作を尊重
+    
     if (e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
     openLink(url);
@@ -455,7 +477,7 @@ export default function NotebookList({
     onMoveOrder(Array.from(selectedIds), direction, contextIds);
   };
 
-  // 2段階削除用の確認ステートとタイマー（誤操作防止）
+  
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmRowDeleteId, setConfirmRowDeleteId] = useState<string | null>(null);
   const [confirmFolderDeleteId, setConfirmFolderDeleteId] = useState<string | null>(null);
@@ -511,6 +533,13 @@ export default function NotebookList({
     setBulkMoveTargetCategory('');
   };
 
+  const handleBulkCreateShortcuts = () => {
+    if (selectedIds.size === 0 || !bulkMoveTargetCategory) return;
+    onBulkCreateShortcuts?.(Array.from(selectedIds), bulkMoveTargetCategory);
+    setSelectedIds(new Set());
+    setBulkMoveTargetCategory('');
+  };
+
   const handleRowDeleteClick = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -560,7 +589,7 @@ export default function NotebookList({
     setEditingId(null);
   };
 
-  // ドラッグ＆ドロップハンドラー
+  
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.stopPropagation();
     setDraggingId(id);
@@ -687,91 +716,103 @@ export default function NotebookList({
         )}
       </div>
 
-      {/* スクロール可能メインエリア */}
-      <div 
-        ref={listContainerRef}
-        onScroll={(e) => {
-          const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-          localStorage.setItem('notebook_list_scroll_top', String(scrollTop));
-          if (scrollHeight - scrollTop - clientHeight < 250) {
-            if (visibleCount < filteredNotebooks.length) {
-              setVisibleCount(prev => Math.min(prev + 100, filteredNotebooks.length));
-            }
-          }
-        }}
-        className="flex-1 flex flex-col overflow-y-auto pr-1 min-h-0 gap-4"
-      >
-
-        {/* 1. 直下のサブフォルダ一覧セクション */}
-        {currentSubCategories.length > 0 && !searchQuery && (
-          <div className="border border-border-main bg-base-bg/60 p-3 relative flex flex-col shrink-0">
-            <div className="text-[10px] font-bold text-text-bright mb-2.5 flex items-center justify-between tracking-wider">
-              <span className="flex items-center gap-1.5">
-                <Folder size={12} className="text-text-bright" />
-                {t.subFolders} ({currentSubCategories.length})
-              </span>
-              <span className="text-[9px] text-text-dim/70 font-normal">
-                {t.clickToOpen}
-              </span>
+      {/* 1. 直下のサブフォルダ一覧セクション（折りたたみ可能） */}
+      {currentSubCategories.length > 0 && !searchQuery && (
+        <div className="border border-border-main bg-base-bg/60 p-2 relative flex flex-col shrink-0 mb-2 transition-all shadow-xs">
+          <div 
+            className="text-[10px] font-bold text-text-bright flex items-center justify-between tracking-wider cursor-pointer select-none py-0.5"
+            onClick={toggleSubfoldersOpen}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Folder size={12} className="text-text-bright shrink-0" />
+              <span>{t.subFolders} ({currentSubCategories.length})</span>
+              {!isSubfoldersOpen && (
+                <span className="text-[9px] text-text-dim/80 font-normal font-mono hidden sm:inline">
+                  {language === 'JP' ? '[ クリックしてサブフォルダを展開 ]' : 'Click to expand subfolders ]'}
+                </span>
+              )}
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {currentSubCategories.map(sub => {
-                const count = folderTotalCounts.get(sub.id) || 0;
-                return (
-                  <div
-                    key={sub.id}
-                    onClick={() => onSelectCategory(sub.id)}
-                    className="flex items-center justify-between p-2.5 bg-panel-bg border border-border-main hover:border-border-light hover:bg-border-main/30 text-left transition-all group cursor-pointer"
-                    title={`${sub.name}\nパス: ${sub.path || sub.name}`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
-                      <Folder size={14} className="text-text-normal group-hover:text-text-bright shrink-0 transition-colors" />
-                      <span 
-                        className="font-bold text-text-bright truncate"
-                        style={{ fontSize: `${listFontSize}px` }}
-                      >
-                        {sub.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[9px] font-mono text-text-bright font-bold px-1.5 py-0.5 bg-base-bg border border-border-main/60">
-                        {count}
-                      </span>
-                      {onDeleteCategory && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleFolderDeleteClick(e, sub.id)}
-                          className={`p-1 transition-all border cursor-pointer ${
-                            confirmFolderDeleteId === sub.id
-                              ? 'bg-red-900/60 text-red-200 border-red-500 font-bold px-1.5 animate-pulse'
-                              : 'opacity-0 group-hover:opacity-100 border-transparent text-text-dim/60 hover:text-[#ff7b72] hover:border-red-500/30 hover:bg-red-950/20'
-                          }`}
-                          title={confirmFolderDeleteId === sub.id ? (language === 'JP' ? '再クリックでフォルダ削除' : 'Click again to confirm delete') : t.delete}
-                        >
-                          {confirmFolderDeleteId === sub.id ? (
-                            <span className="flex items-center gap-1 text-[9px] text-red-200 font-mono">
-                              <Trash2 size={11} className="shrink-0 animate-bounce" />
-                              {language === 'JP' ? '削除確認' : 'CONFIRM'}
-                            </span>
-                          ) : (
-                            <Trash2 size={12} className="shrink-0" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSubfoldersOpen();
+              }}
+              className="flex items-center gap-1 text-[9px] px-2 py-0.5 border border-border-main bg-panel-bg text-text-dim hover:text-text-bright hover:border-border-light transition-colors font-mono cursor-pointer shrink-0"
+              title={isSubfoldersOpen ? (language === 'JP' ? 'サブフォルダ一覧を折りたたむ' : 'Collapse subfolders') : (language === 'JP' ? 'サブフォルダ一覧を展開する' : 'Expand subfolders')}
+            >
+              {isSubfoldersOpen ? (
+                <>
+                  <ChevronUp size={11} className="shrink-0" />
+                  <span>{language === 'JP' ? '折りたたむ' : 'COLLAPSE'}</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={11} className="shrink-0" />
+                  <span>{language === 'JP' ? '展開' : 'EXPAND'}</span>
+                </>
+              )}
+            </button>
           </div>
-        )}
 
-        {/* 2. ブックマーク一覧セクション */}
-        <div className="flex flex-col flex-1 min-h-0">
-          
-          {/* リスト制御ヘッダー (位置固定レイアウト: 選択時・非選択時でボタン位置が一切ブレない) */}
-          <div className="flex flex-col gap-1.5 border-b border-border-main pb-2 mb-2 px-2 shrink-0">
+          {isSubfoldersOpen && (
+            <div className="mt-2 pt-2 border-t border-border-main/40 max-h-[170px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {currentSubCategories.map(sub => {
+                  const count = folderTotalCounts.get(sub.id) || 0;
+                  return (
+                    <div
+                      key={sub.id}
+                      onClick={() => onSelectCategory(sub.id)}
+                      className="flex items-center justify-between p-2 bg-panel-bg border border-border-main hover:border-border-light hover:bg-border-main/30 text-left transition-all group cursor-pointer"
+                      title={`${sub.name}\nパス: ${sub.path || sub.name}`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1.5">
+                        <Folder size={13} className="text-text-normal group-hover:text-text-bright shrink-0 transition-colors" />
+                        <span 
+                          className="font-bold text-text-bright truncate"
+                          style={{ fontSize: `${listFontSize}px` }}
+                        >
+                          {sub.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[8.5px] font-mono text-text-bright font-bold px-1.5 py-0.2 bg-base-bg border border-border-main/60">
+                          {count}
+                        </span>
+                        {onDeleteCategory && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleFolderDeleteClick(e, sub.id)}
+                            className={`p-0.5 transition-all border cursor-pointer ${
+                              confirmFolderDeleteId === sub.id
+                                ? 'bg-red-900/60 text-red-200 border-red-500 font-bold px-1.5 animate-pulse'
+                                : 'opacity-0 group-hover:opacity-100 border-transparent text-text-dim/60 hover:text-[#ff7b72] hover:border-red-500/30 hover:bg-red-950/20'
+                            }`}
+                            title={confirmFolderDeleteId === sub.id ? (language === 'JP' ? '再クリックでフォルダ削除' : 'Click again to confirm delete') : t.delete}
+                          >
+                            {confirmFolderDeleteId === sub.id ? (
+                              <span className="flex items-center gap-1 text-[8.5px] text-red-200 font-mono">
+                                <Trash2 size={10} className="shrink-0 animate-bounce" />
+                                {language === 'JP' ? '削除実行' : 'CONFIRM'}
+                              </span>
+                            ) : (
+                              <Trash2 size={11} className="shrink-0" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2. リスト制御ヘッダー (常時固定表示: スクロールしても常に最上部に見えている) */}
+      <div className="flex flex-col gap-1.5 border-b border-border-main pb-2 mb-2 px-1 shrink-0">
             {/* 上段: 基本情報 ＆ 表示・追加コントロール */}
             <div className="flex items-center justify-between gap-2 text-[10px] text-text-dim">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -816,7 +857,7 @@ export default function NotebookList({
                         type="button"
                         onClick={handleResetWidths}
                         className="h-6 px-2 flex items-center gap-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light transition-colors text-[9px] font-mono font-bold cursor-pointer shrink-0"
-                        title={language === 'JP' ? '列の幅を初期状態に戻す' : 'Reset column widths to default'}
+                        title={language === 'JP' ? '列幅を初期状態に戻す' : 'Reset column widths to default'}
                       >
                         <RotateCcw size={10} className="shrink-0" />
                         <span>{t.resetWidths}</span>
@@ -832,7 +873,7 @@ export default function NotebookList({
                               ? 'border-accent-text bg-accent-bg/30 text-accent-text'
                               : 'border-border-main bg-base-bg text-text-dim hover:text-text-bright'
                           }`}
-                          title={language === 'JP' ? 'リスト表示でのカラーハイライトの表示/非表示を切り替え' : 'Toggle list row color highlight'}
+                          title={language === 'JP' ? 'リスト行カラーハイライトの表示/非表示を切り替え' : 'Toggle list row color highlight'}
                         >
                           <Palette size={10} className="shrink-0" />
                           <span className="w-[82px] inline-block text-center font-mono leading-none">
@@ -852,7 +893,7 @@ export default function NotebookList({
                       <div className="flex items-center gap-1 shrink-0">
                         <Sliders size={10} className="text-text-dim shrink-0" />
                         <span className="font-mono text-[9px] font-bold text-text-dim shrink-0">
-                          {language === 'JP' ? 'カード:' : 'SIZE:'}
+                          {language === 'JP' ? 'サイズ:' : 'SIZE:'}
                         </span>
                       </div>
                       <input 
@@ -910,7 +951,7 @@ export default function NotebookList({
               {/* カオルさまご指定: ミュージックプレイヤー風のシンプルな移動操作デッキ (一番上 / 上へ / 下へ / 一番下) */}
               <div 
                 className="flex items-center border border-border-main bg-base-bg rounded-xs overflow-hidden leading-none shrink-0"
-                title={language === 'JP' ? '選択したブックマークを移動（一番上 / 上へ / 下へ / 一番下）' : 'Reorder selected (Top / Up / Down / Bottom)'}
+                title={language === 'JP' ? '選択したブックマークを移動（一番上 / 上 / 下 / 一番下）' : 'Reorder selected (Top / Up / Down / Bottom)'}
               >
                 {/* 一番上へ (Top / Skip to start) */}
                 <button
@@ -981,7 +1022,7 @@ export default function NotebookList({
                   onClick={handleClearSelection}
                   disabled={selectedIds.size === 0}
                   className="h-6 px-2 flex items-center gap-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light text-[9px] font-mono font-bold transition-colors cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed rounded-xs"
-                  title={language === 'JP' ? '選択状態を解除（セレクトキャンセル）' : 'Cancel selection'}
+                  title={language === 'JP' ? '選択を解除（セレクトキャンセル）' : 'Cancel selection'}
                 >
                   <X size={11} />
                   <span>{t.cancelSelect || (language === 'JP' ? 'セレクトキャンセル' : 'DESELECT')}</span>
@@ -1001,9 +1042,9 @@ export default function NotebookList({
                     value={bulkMoveTargetCategory}
                     disabled={selectedIds.size === 0}
                     onChange={(e) => setBulkMoveTargetCategory(e.target.value)}
-                    className="bg-transparent text-text-bright text-[10px] outline-none font-mono cursor-pointer disabled:cursor-not-allowed max-w-[130px] sm:max-w-[180px] truncate"
+                    className="bg-transparent text-text-bright text-[10px] outline-none font-mono cursor-pointer disabled:cursor-not-allowed max-w-[130px] sm:max-w-[170px] truncate"
                   >
-                    <option value="" disabled>{language === 'JP' ? '移動先フォルダ...' : 'MOVE TO FOLDER...'}</option>
+                    <option value="" disabled>{language === 'JP' ? '対象フォルダを選択...' : 'SELECT FOLDER...'}</option>
                     <option value="__UNASSIGNED__">{t.unassigned}</option>
                     {getHierarchicalCategories(categories).map(c => (
                       <option key={c.id} value={c.id}>{getCategoryIndentedLabel(c, categories)}</option>
@@ -1014,9 +1055,22 @@ export default function NotebookList({
                     onClick={handleBulkMove}
                     disabled={selectedIds.size === 0 || !bulkMoveTargetCategory}
                     className="bg-border-light text-white hover:bg-white hover:text-black disabled:opacity-40 disabled:hover:bg-border-light disabled:hover:text-white px-2 py-0.5 text-[9px] font-bold font-mono transition-colors cursor-pointer disabled:cursor-not-allowed rounded-xs"
+                    title={language === 'JP' ? '選択したブックマークを指定フォルダへ移動' : 'Move selected to folder'}
                   >
                     {language === 'JP' ? '移動' : 'MOVE'}
                   </button>
+                  {onBulkCreateShortcuts && (
+                    <button
+                      type="button"
+                      onClick={handleBulkCreateShortcuts}
+                      disabled={selectedIds.size === 0 || !bulkMoveTargetCategory}
+                      className="border border-accent-text/60 bg-accent-bg/40 text-accent-text hover:bg-accent-text hover:text-black disabled:opacity-35 disabled:hover:bg-accent-bg/40 disabled:hover:text-accent-text px-2 py-0.5 text-[9px] font-bold font-mono transition-colors cursor-pointer disabled:cursor-not-allowed rounded-xs flex items-center gap-1"
+                      title={language === 'JP' ? '選択したブックマークのショートカットを指定フォルダに一括作成' : 'Create shortcuts for selected in folder'}
+                    >
+                      <Link2 size={10} className="shrink-0" />
+                      <span>{language === 'JP' ? 'ショートカット' : 'SHORTCUT'}</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1049,38 +1103,53 @@ export default function NotebookList({
             </div>
           </div>
 
-          {/* インライン ブックマーク追加フォーム */}
-          {isAddFormOpen && (
-            <AddNotebookForm
-              categories={categories}
-              activeCategoryId={activeCategoryId}
-              onAdd={(items) => {
-                onAdd(items);
-                setIsAddFormOpen(false);
-              }}
-              onAddCategory={onAddCategory}
-              onClose={() => setIsAddFormOpen(false)}
-              language={language}
-            />
-          )}
-          
-          {/* ブックマークリスト */}
-          {filteredNotebooks.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-text-dim/60 text-[10px] gap-2">
-              {currentSubCategories.length > 0 && !includeSubfolders ? (
-                <div className="flex flex-col items-center gap-1.5 max-w-md text-center px-4 py-3 bg-base-bg border border-border-main/50">
-                  <CornerDownRight size={14} className="text-text-bright mb-1" />
-                  <span className="text-text-normal font-medium">{t.noDirectBookmarksInFolder}</span>
-                </div>
-              ) : (
-                <span>{notebooks.length === 0 ? t.awaitingInit : 'NO MATCHING RESULTS'}</span>
-              )}
-            </div>
-          ) : viewMode === 'list' ? (
-            <div className="flex flex-col pb-4 w-full">
-              <div className="w-full flex flex-col">
-                {/* テーブル列ヘッダー */}
-                <div className="w-full flex items-center text-[10px] font-bold text-text-dim border-b border-border-main pb-2 px-2 shrink-0 tracking-wider select-none gap-2 sm:gap-3">
+      {/* インライン ブックマーク追加フォーム (常時固定表示エリア) */}
+      {isAddFormOpen && (
+        <div className="shrink-0 mb-2">
+          <AddNotebookForm
+            categories={categories}
+            activeCategoryId={activeCategoryId}
+            onAdd={(items) => {
+              onAdd(items);
+              setIsAddFormOpen(false);
+            }}
+            onAddCategory={onAddCategory}
+            onClose={() => setIsAddFormOpen(false)}
+            language={language}
+          />
+        </div>
+      )}
+      
+      {/* 3. ブックマークリスト（独立スクロールエリア: コントロールバーは画面上部に完全固定） */}
+      <div 
+        ref={listContainerRef}
+        onScroll={(e) => {
+          const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+          localStorage.setItem('notebook_list_scroll_top', String(scrollTop));
+          if (scrollHeight - scrollTop - clientHeight < 250) {
+            if (visibleCount < filteredNotebooks.length) {
+              setVisibleCount(prev => Math.min(prev + 100, filteredNotebooks.length));
+            }
+          }
+        }}
+        className="flex-1 flex flex-col overflow-y-auto pr-1 min-h-0"
+      >
+        {filteredNotebooks.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center text-text-dim/60 text-[10px] gap-2">
+            {currentSubCategories.length > 0 && !includeSubfolders ? (
+              <div className="flex flex-col items-center gap-1.5 max-w-md text-center px-4 py-3 bg-base-bg border border-border-main/50">
+                <CornerDownRight size={14} className="text-text-bright mb-1" />
+                <span className="text-text-normal font-medium">{t.noDirectBookmarksInFolder}</span>
+              </div>
+            ) : (
+              <span>{notebooks.length === 0 ? t.awaitingInit : 'NO MATCHING RESULTS'}</span>
+            )}
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className="flex flex-col pb-4 w-full">
+            <div className="w-full flex flex-col">
+              {/* テーブル列ヘッダー (sticky top-0 でリストスクロール中も常に上部に吸着固定) */}
+              <div className="sticky top-0 bg-panel-bg z-20 w-full flex items-center text-[10px] font-bold text-text-dim border-b border-border-main py-2 px-2 shrink-0 tracking-wider select-none gap-2 sm:gap-3 shadow-2xs">
                   <span className="w-5 shrink-0" title="並び替え用ドラッグハンドル"></span>
                   <span className="w-8 shrink-0"></span>
 
@@ -1157,10 +1226,13 @@ export default function NotebookList({
                 </div>
 
                 {displayedNotebooks.map((nb) => {
-                const host = getHostname(nb.url);
+                const effectiveNb = (nb.isShortcut && nb.targetId) 
+                  ? (allNotebooks.find(target => target.id === nb.targetId) || nb) 
+                  : nb;
+                const host = getHostname(effectiveNb.url);
                 const isDragging = draggingId === nb.id;
                 const isDragOver = dragOverId === nb.id;
-                const preset = getColorPresetById(nb.color, colorPresets);
+                const preset = getColorPresetById(effectiveNb.color, colorPresets);
 
                 return (
                   <div
@@ -1177,8 +1249,8 @@ export default function NotebookList({
                       isDragOver ? 'border-t-2 border-t-text-bright bg-border-main/25' : ''
                     }`}
                     style={{
-                      backgroundColor: (showListColors && preset) ? preset.bgStyle : undefined,
-                      borderLeft: (showListColors && preset) ? `4px solid ${preset.color}` : undefined
+                      backgroundColor: (showColors && showListColors && preset) ? preset.bgStyle : undefined,
+                      borderLeft: (showColors && showListColors && preset) ? `4px solid ${preset.color}` : undefined
                     }}
                     onClick={(e) => handleRowClick(nb.id, e)}
                   >
@@ -1279,31 +1351,40 @@ export default function NotebookList({
                         {/* ノードタイトル・リンク（残り幅をすべて使い、ブラウザ枠まで広がる） */}
                         <div className="flex-1 min-w-[140px] flex items-center gap-2.5 overflow-hidden pr-3">
                           <div className="w-6 h-6 flex items-center justify-center bg-base-bg text-text-normal shrink-0 border border-border-main/50 group-hover:border-border-light transition-colors">
-                            <FileText size={12} />
+                            {nb.isShortcut ? <Link2 size={12} className="text-accent-text" /> : <FileText size={12} />}
                           </div>
                           <div className="flex items-center gap-1.5 overflow-hidden flex-1 group/edit min-w-0">
+                            {nb.isShortcut && (
+                              <span 
+                                className="text-[8.5px] px-1 py-0.2 bg-accent-bg/40 text-accent-text font-mono font-bold border border-accent-text/40 rounded-xs flex items-center gap-0.5 shrink-0" 
+                                title={language === 'JP' ? `ショートカット (本体: ${effectiveNb.title})` : `Shortcut (Target: ${effectiveNb.title})`}
+                              >
+                                <Link2 size={9} />
+                                <span>{language === 'JP' ? 'ショートカット' : 'SHORTCUT'}</span>
+                              </span>
+                            )}
                             <a 
-                              href={nb.url}
+                              href={effectiveNb.url}
                               target="_blank"
                               rel="noreferrer"
-                              onClick={(e) => handleOpenLink(e, nb.url)}
+                              onClick={(e) => handleOpenLink(e, effectiveNb.url)}
                               style={{ fontSize: `${linkFontSize}px` }}
                               className="text-text-bright hover:underline truncate font-bold transition-colors cursor-pointer"
-                              title={language === 'JP' ? `${nb.title} (ウィンドウで開く)` : `${nb.title} (Open in window)`}
+                              title={language === 'JP' ? `${effectiveNb.title} (${effectiveNb.url})` : `${effectiveNb.title} (${effectiveNb.url})`}
                             >
-                              {nb.title}
+                              {effectiveNb.title}
                             </a>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openLink(nb.url);
+                                setShortcutTargetNb(effectiveNb);
                               }}
                               className="text-text-dim hover:text-text-bright opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 shrink-0 cursor-pointer"
-                              title={language === 'JP' ? 'ウィンドウで開く (1920×1100)' : 'Open in window (1920x1100)'}
+                              title={language === 'JP' ? 'このブックマークのショートカットを作成' : 'Create shortcut for this bookmark'}
                             >
-                              <AppWindow size={11} />
+                              <Link2 size={11} className="text-accent-text" />
                             </button>
                             <button 
                                 onClick={(e) => startEdit(e, nb)}
@@ -1405,12 +1486,15 @@ export default function NotebookList({
                 style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))` }}
               >
                 {displayedNotebooks.map((nb) => {
-                  const host = getHostname(nb.url);
+                  const effectiveNb = (nb.isShortcut && nb.targetId) 
+                    ? (allNotebooks.find(target => target.id === nb.targetId) || nb) 
+                    : nb;
+                  const host = getHostname(effectiveNb.url);
                   const isSelected = selectedIds.has(nb.id);
                   const isEditing = editingId === nb.id;
                   const catName = getCategoryName(nb.categoryId);
                   const isCopied = copiedId === nb.id;
-                  const preset = getColorPresetById(nb.color, colorPresets);
+                  const preset = getColorPresetById(effectiveNb.color, colorPresets);
 
                   const isDragging = draggingId === nb.id;
                   const isDragOver = dragOverId === nb.id;
@@ -1434,8 +1518,8 @@ export default function NotebookList({
                         isDragOver ? 'ring-2 ring-text-bright border-text-bright bg-border-main/30 scale-[1.01]' : ''
                       }`}
                       style={{
-                        backgroundColor: preset ? preset.bgStyle : undefined,
-                        borderColor: preset ? preset.borderStyle : undefined
+                        backgroundColor: (showColors && preset) ? preset.bgStyle : undefined,
+                        borderColor: (showColors && preset) ? preset.borderStyle : undefined
                       }}
                       onClick={(e) => handleRowClick(nb.id, e)}
                     >
@@ -1513,7 +1597,7 @@ export default function NotebookList({
 
                                   <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
                                     {(colorPresets || []).map(p => {
-                                      const isCurrent = (nb.color || 'none') === p.id;
+                                      const isCurrent = (effectiveNb.color || 'none') === p.id;
                                       return (
                                         <button
                                           key={p.id}
@@ -1542,24 +1626,24 @@ export default function NotebookList({
                               )}
                             </div>
 
-                            {/* 独立ウィンドウで開く */}
+                            {/* ショートカット作成ボタン */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openLink(nb.url);
+                                setShortcutTargetNb(effectiveNb);
                               }}
                               className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
-                              title={language === 'JP' ? 'ウィンドウで開く (1920×1100)' : 'Open in window (1920x1100)'}
+                              title={language === 'JP' ? 'ショートカット作成' : 'Create Shortcut'}
                             >
-                              <AppWindow size={12} />
+                              <Link2 size={12} className="text-accent-text" />
                             </button>
 
                             {/* URLコピー */}
                             <button
                               type="button"
-                              onClick={(e) => handleCopyUrl(e, nb.id, nb.url)}
+                              onClick={(e) => handleCopyUrl(e, nb.id, effectiveNb.url)}
                               className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
                               title={isCopied ? t.copied : t.copyUrl}
                             >
@@ -1668,27 +1752,36 @@ export default function NotebookList({
                           <>
                             {/* タイトルエリア */}
                             <div className="mb-3">
+                              {nb.isShortcut && (
+                                <span 
+                                  className="inline-flex items-center gap-0.5 text-[8.5px] px-1 py-0.2 bg-accent-bg/40 text-accent-text font-mono font-bold border border-accent-text/40 rounded-xs mb-1" 
+                                  title={language === 'JP' ? `ショートカット (本体: ${effectiveNb.title})` : `Shortcut (Target: ${effectiveNb.title})`}
+                                >
+                                  <Link2 size={9} />
+                                  <span>{language === 'JP' ? 'ショートカット' : 'SHORTCUT'}</span>
+                                </span>
+                              )}
                               <a
-                                href={nb.url}
-                                onClick={(e) => handleOpenLink(e, nb.url)}
+                                href={effectiveNb.url}
+                                onClick={(e) => handleOpenLink(e, effectiveNb.url)}
                                 draggable={false}
                                 onDragStart={(e) => e.preventDefault()}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{ fontSize: `${linkFontSize}px` }}
                                 className="font-bold text-text-bright hover:underline line-clamp-2 leading-snug cursor-pointer transition-colors block"
-                                title={nb.title}
+                                title={effectiveNb.title}
                               >
-                                {nb.title}
+                                {effectiveNb.title}
                               </a>
                             </div>
 
                             {/* 詳細メタ情報（URL & 所属フォルダ） */}
                             <div className="flex flex-col gap-1.5 mb-4 text-[10px] font-mono text-text-dim">
                               {/* URL表示 */}
-                              <div className="flex items-center gap-1.5 text-text-bright truncate" title={nb.url}>
+                              <div className="flex items-center gap-1.5 text-text-bright truncate" title={effectiveNb.url}>
                                 <Globe size={11} className="shrink-0 text-text-dim" />
-                                <span className="truncate text-[10px] select-all font-medium text-text-bright">{nb.url}</span>
+                                <span className="truncate text-[10px] select-all font-medium text-text-bright">{effectiveNb.url}</span>
                               </div>
 
                               {/* 所属フォルダ */}
@@ -1704,7 +1797,7 @@ export default function NotebookList({
                       {/* フッター行: カラーラベル + 日付 + OPEN → ボタン */}
                       <div className="pt-2.5 border-t border-border-main/50 flex items-center justify-between text-[10px] font-mono">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          {preset && (
+                          {showColors && preset && (
                             <span 
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-mono font-bold rounded-xs border shadow-2xs shrink-0 truncate max-w-[100px]"
                               style={{ backgroundColor: preset.bgStyle, color: preset.color, borderColor: preset.borderStyle }}
@@ -1720,7 +1813,7 @@ export default function NotebookList({
                         {/* OPEN → ボタン */}
                         <button
                           type="button"
-                          onClick={(e) => handleOpenLink(e as any, nb.url)}
+                          onClick={(e) => handleOpenLink(e as any, effectiveNb.url)}
                           onDragStart={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-text-bright hover:underline font-mono font-bold text-[10px] tracking-wider transition-colors cursor-pointer"
                           title={language === 'JP' ? 'リンクを開く' : 'Open Link'}
@@ -1752,7 +1845,19 @@ export default function NotebookList({
           )}
         </div>
 
-      </div>
+      {shortcutTargetNb && onCreateShortcut && (
+        <CreateShortcutModal
+          isOpen={!!shortcutTargetNb}
+          targetNotebook={shortcutTargetNb}
+          categories={categories}
+          language={language}
+          onClose={() => setShortcutTargetNb(null)}
+          onCreateShortcut={(target, destCatId) => {
+            onCreateShortcut(target, destCatId);
+            setShortcutTargetNb(null);
+          }}
+        />
+      )}
     </div>
   );
 }

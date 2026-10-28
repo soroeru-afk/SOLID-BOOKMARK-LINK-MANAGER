@@ -12,4 +12,6 @@ export interface Notebook {
   categoryId: string;
   createdAt: number;
   color?: string; // Color preset ID (e.g. 'red', 'blue', 'green') or hex
+  isShortcut?: boolean; // ショートカットフラグ
+  targetId?: string; // ショートカットの本体ブックマークID
 }

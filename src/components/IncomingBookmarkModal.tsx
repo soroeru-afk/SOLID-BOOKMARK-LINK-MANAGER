@@ -3,6 +3,7 @@ import { Bookmark, Folder, FolderPlus, Check, X, Sparkles } from 'lucide-react';
 import { Category } from '../types';
 import { Language, i18n } from '../i18n';
 import { getHierarchicalCategories, getCategoryIndentedLabel } from '../utils/categoryUtils';
+import { fetchPageTitle } from '../utils/titleFetcher';
 
 interface Props {
   isOpen: boolean;
@@ -43,6 +44,15 @@ export function IncomingBookmarkModal({
     setIsCreatingFolder(false);
     setNewFolderName('');
     setNewFolderParentId('');
+
+    // PWA共有などでタイトルが未設定、またはURLと同じ場合に自動タイトル取得を実行
+    if (isOpen && initialUrl && (!initialTitle || initialTitle.trim() === initialUrl.trim() || initialTitle === 'Shared Link')) {
+      fetchPageTitle(initialUrl).then((fetchedTitle) => {
+        if (fetchedTitle && fetchedTitle.trim()) {
+          setTitle(fetchedTitle.trim());
+        }
+      }).catch(() => {});
+    }
   }, [initialTitle, initialUrl, initialCategoryId, isOpen]);
 
   if (!isOpen) return null;
