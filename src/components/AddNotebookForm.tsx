@@ -119,19 +119,43 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
     }
   };
 
+  // 二重貼り付けや重複プロトコルを自動修復・クリーンアップする関数
+  const sanitizeUrl = (input: string): string => {
+    let clean = input.trim();
+    if (!clean) return '';
+
+    // https://...https://... のように二重貼り付けされた場合の自動修復
+    const secondHttpIdx = clean.slice(7).search(/https?:\/\//i);
+    if (secondHttpIdx !== -1) {
+      const splitIdx = secondHttpIdx + 7;
+      const firstPart = clean.slice(0, splitIdx);
+      const secondPart = clean.slice(splitIdx);
+      if (firstPart === secondPart || firstPart.startsWith(secondPart) || secondPart.startsWith(firstPart)) {
+        clean = secondPart;
+      } else {
+        // 重複部分の後半を優先
+        clean = secondPart;
+      }
+    }
+
+    return clean;
+  };
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setUrl(val);
-    const clean = val.trim();
+    const rawVal = e.target.value;
+    const clean = sanitizeUrl(rawVal);
+    setUrl(clean);
+
     if (!title.trim() && clean.length > 7 && (clean.startsWith('http://') || clean.startsWith('https://') || clean.includes('.'))) {
       fetchTitle(clean);
     }
   };
 
   const handleUrlPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    // ブラウザのデフォルト貼り付け動作による二重入力を完全遮断
+    e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
     if (pastedText && pastedText.trim()) {
-      const clean = pastedText.trim();
+      const clean = sanitizeUrl(pastedText);
       setUrl(clean);
       if (!title.trim()) {
         fetchTitle(clean);
@@ -273,7 +297,13 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
                   value={url}
                   onChange={handleUrlChange}
                   onPaste={handleUrlPaste}
-                  onBlur={() => fetchTitle(url)}
+                  onBlur={() => {
+                    const clean = sanitizeUrl(url);
+                    setUrl(clean);
+                    if (!title.trim() && clean) {
+                      fetchTitle(clean);
+                    }
+                  }}
                   placeholder="https://..."
                   className="w-full h-8 px-2.5 bg-panel-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[11px] font-mono"
                   autoFocus
