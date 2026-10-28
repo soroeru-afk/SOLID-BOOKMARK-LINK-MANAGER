@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Theme, FontFamily } from '../App';
 import { Language, i18n } from '../i18n';
-import { Type, ChevronDown, Palette, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight, Image } from 'lucide-react';
+import { Type, ChevronDown, Sliders, Bookmark, Maximize2, Minimize2, PanelLeft, PanelRight, Check, Image } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
   onToggleSidebarPosition?: () => void;
 }
 
-const THEMES: Theme[] = ['black', 'red', 'dark', 'light'];
+const THEMES: Theme[] = ['dark', 'black', 'paper', 'pink', 'light', 'red'];
 
 export default function Header({ 
   theme, 
@@ -41,6 +41,8 @@ export default function Header({
 }: Props) {
   const t = i18n[language];
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleFsChange = () => {
@@ -48,6 +50,16 @@ export default function Header({
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (themeDropdownRef.current && !themeDropdownRef.current.contains(event.target as Node)) {
+        setIsThemeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const toggleFullscreen = () => {
@@ -64,33 +76,32 @@ export default function Header({
     }
   };
 
-  const handleToggleTheme = () => {
-    const idx = THEMES.indexOf(theme);
-    const nextTheme = THEMES[(idx + 1) % THEMES.length];
-    onThemeChange(nextTheme);
-  };
-
   const getThemeLabel = (th: Theme): string => {
     switch (th) {
-      case 'black': return 'BLACK';
-      case 'red': return 'RED';
       case 'dark': return 'NAVY';
+      case 'black': return 'BLACK';
+      case 'paper': return 'PAPER';
+      case 'pink': return 'PINK';
       case 'light': return 'LIGHT';
-      default: return th;
+      case 'red': return 'RED';
+      default: return String(th).toUpperCase();
     }
   };
 
-  const getThemeDotColor = (th: Theme): string => {
+  const getThemeDotBg = (th: Theme): string => {
     switch (th) {
-      case 'black': return 'bg-zinc-400 border border-zinc-200';
-      case 'red': return 'bg-red-500 border border-red-300 shadow-[0_0_8px_rgba(239,68,68,0.8)]';
-      case 'dark': return 'bg-sky-400 border border-sky-200';
-      case 'light': return 'bg-amber-300 border border-amber-600';
+      case 'dark': return '#2563eb';
+      case 'black': return '#334155';
+      case 'paper': return '#d9532f';
+      case 'pink': return '#d0587e';
+      case 'light': return '#0284c7';
+      case 'red': return '#ef4444';
+      default: return '#94a3b8';
     }
   };
 
   return (
-    <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-border-main bg-panel-bg p-3.5 relative gap-3 transition-colors duration-300 shadow-md">
+    <header className="flex flex-wrap justify-between items-center w-full shrink-0 border border-border-main bg-panel-bg p-3.5 relative gap-3">
         <div className="absolute top-0 left-0 bg-base-bg px-2 -mt-[0.6rem] ml-4 text-[10px] text-text-dim font-bold tracking-widest">
             {t.systemControl}
         </div>
@@ -171,38 +182,79 @@ export default function Header({
                 </div>
             </div>
 
-            {/* テーマ切り替え（1つのトグルボタン） */}
-            <button 
-              type="button"
-              onClick={handleToggleTheme}
-              className="flex items-center gap-2 px-2.5 py-1 border border-border-light hover:border-text-bright bg-base-bg text-text-normal hover:text-text-bright transition-all cursor-pointer select-none shrink-0 shadow-xs"
-              title={language === 'JP' ? 'クリックしてテーマ切り替え (BLACK → RED → NAVY → LIGHT)' : 'Click to cycle theme (BLACK → RED → NAVY → LIGHT)'}
-            >
-              <Palette size={12} className="text-text-bright shrink-0" />
-              <span className="text-text-dim shrink-0 font-mono">{t.theme}:</span>
-              <span className="flex items-center gap-1.5 font-bold font-mono">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${getThemeDotColor(theme)}`} />
-                <span className="inline-block min-w-[42px] text-left text-text-bright font-bold">{getThemeLabel(theme)}</span>
-              </span>
-            </button>
+            {/* テーマ切り替え（ドロップダウンメニュー） */}
+            <div className="relative shrink-0" ref={themeDropdownRef}>
+              <button 
+                type="button"
+                onClick={() => setIsThemeDropdownOpen(prev => !prev)}
+                className="flex items-center gap-2 px-2.5 py-1 border border-border-main hover:border-border-light bg-base-bg text-text-bright transition-all cursor-pointer select-none shrink-0 font-mono font-bold text-[10px]"
+                title={language === 'JP' ? 'テーマ切り替えメニューを開く' : 'Open theme menu'}
+              >
+                <span 
+                  className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/30 shadow-xs" 
+                  style={{ backgroundColor: getThemeDotBg(theme) }}
+                />
+                <span className="inline-block min-w-[38px] text-left">{getThemeLabel(theme)}</span>
+                <ChevronDown size={11} className={`text-text-dim transition-transform ${isThemeDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* ドロップダウン ポップアップ */}
+              {isThemeDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-44 bg-panel-bg border border-border-main shadow-2xl z-50 overflow-hidden font-mono text-[11px]">
+                  <div className="px-3 py-2 border-b border-border-main text-[10px] text-text-dim font-bold flex items-center gap-1.5 bg-base-bg">
+                    <span>🎨</span>
+                    <span>{language === 'JP' ? 'テーマ切り替え' : 'SELECT THEME'}</span>
+                  </div>
+                  <div className="py-1">
+                    {THEMES.map((th) => {
+                      const isSelected = th === theme;
+                      return (
+                        <button
+                          key={th}
+                          type="button"
+                          onClick={() => {
+                            onThemeChange(th);
+                            setIsThemeDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-1.5 transition-colors cursor-pointer text-left font-bold ${
+                            isSelected 
+                              ? 'bg-accent-bg text-accent-text' 
+                              : 'text-text-normal hover:bg-base-bg hover:text-text-bright'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/30" 
+                              style={{ backgroundColor: getThemeDotBg(th) }} 
+                            />
+                            <span>{getThemeLabel(th)}</span>
+                          </div>
+                          {isSelected && <Check size={13} className="shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* 言語切り替え */}
             <div className="flex border border-border-main rounded-xs text-[10px] overflow-hidden leading-none shrink-0 bg-base-bg font-mono">
               <button
                 onClick={() => onLanguageChange('EN')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-bright'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'EN' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
               >
                 EN
               </button>
               <button
                 onClick={() => onLanguageChange('JP')}
-                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-text-bright' : 'text-text-dim hover:text-text-bright'}`}
+                className={`px-2.5 py-1 transition-colors font-bold cursor-pointer ${language === 'JP' ? 'bg-border-light text-white' : 'text-text-dim hover:text-text-bright'}`}
               >
                 JP
               </button>
             </div>
 
-            {/* 新規追加コントロール群（Side Change / 1クリック保存 / アイコン変更 / 全画面切り替え） */}
+            {/* 新規追加コントロール群（Side Change / 1クリック保存 / 全画面切り替え） */}
             <div className="flex items-center gap-1 shrink-0">
               {/* サイドバー左右移動（Side Change）ボタン */}
               {onToggleSidebarPosition && (

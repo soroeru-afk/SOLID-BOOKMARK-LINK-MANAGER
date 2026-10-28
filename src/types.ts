@@ -11,4 +11,5 @@ export interface Notebook {
   url: string;
   categoryId: string;
   createdAt: number;
+  color?: string; // Color preset ID (e.g. 'red', 'blue', 'green') or hex
 }

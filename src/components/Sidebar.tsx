@@ -2,10 +2,12 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { 
   LayoutGrid, Folders, Plus, Folder, FolderOpen, 
   Download, Upload, FileCode, Pencil, Trash2, RotateCcw,
-  ChevronRight, ChevronDown, ChevronsUpDown, ChevronsDown, ChevronsUp, FolderTree, Search, X, Bookmark
+  ChevronRight, ChevronDown, ChevronsUpDown, ChevronsDown, ChevronsUp, FolderTree, Search, X, Bookmark,
+  Palette, Settings, Check, Terminal, Zap, GripVertical
 } from 'lucide-react';
 import { Category, Notebook } from '../types';
 import { Language, i18n } from '../i18n';
+import { ColorPreset } from '../utils/colorPresets';
 
 interface Props {
   categories: Category[];
@@ -26,6 +28,11 @@ interface Props {
   sidebarPosition?: 'left' | 'right';
   onOpenFolderManager?: () => void;
   isFolderManagerActive?: boolean;
+  colorPresets?: ColorPreset[];
+  onUpdateColorPresets?: (presets: ColorPreset[]) => void;
+  showListColors?: boolean;
+  onToggleShowListColors?: () => void;
+  onResetAllColors?: () => void;
 }
 
 interface CategoryTreeNode extends Category {
@@ -57,7 +64,12 @@ export default function Sidebar({
   onOpenBookmarklet,
   sidebarPosition = 'left',
   onOpenFolderManager,
-  isFolderManagerActive = false
+  isFolderManagerActive = false,
+  colorPresets = [],
+  onUpdateColorPresets,
+  showListColors = true,
+  onToggleShowListColors,
+  onResetAllColors
 }: Props) {
   // サイドバーの幅（localStorageで永続化）
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -74,6 +86,24 @@ export default function Sidebar({
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
+
+  // 下部ボトムコマンドバー ポップオーバー用ステート
+  const [activeBottomTab, setActiveBottomTab] = useState<'data' | 'color' | 'stock' | null>(null);
+  const bottomToolbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bottomToolbarRef.current && !bottomToolbarRef.current.contains(e.target as Node)) {
+        setActiveBottomTab(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // 色管理ラベル編集ステート
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [editingPresetName, setEditingPresetName] = useState<string>('');
 
   // フォルダドロップ時のハイライト状態
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
@@ -638,6 +668,10 @@ export default function Sidebar({
             <span>{t.dbConnection}</span>
             <span className="text-text-normal">{t.established}</span>
           </div>
+          <div className="flex justify-between">
+            <span>{language === 'JP' ? 'Google Drive同期' : 'Drive App Sync'}</span>
+            <span className="text-accent-text font-bold">{language === 'JP' ? '自動レジューム有効' : 'AUTO RESUME'}</span>
+          </div>
         </div>
       </div>
 
@@ -662,7 +696,7 @@ export default function Sidebar({
                   <button
                     type="button"
                     onClick={onOpenFolderManager}
-                    className={`h-7 px-2 border text-[9px] font-mono tracking-wider flex items-center gap-1 cursor-pointer transition-colors ${
+                    className={`h-7 px-2.5 border text-[9px] font-mono tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 ${
                       isFolderManagerActive
                         ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
                         : 'border-border-main hover:border-border-light text-text-dim hover:text-text-bright'
@@ -670,24 +704,22 @@ export default function Sidebar({
                     title={language === 'JP' ? 'メイン画面でフォルダー管理・並び替えを開く' : 'Open Folder Manager in Main View'}
                   >
                     <FolderTree size={12} />
-                    <span className="font-bold">MGR</span>
+                    <span className="font-bold">{language === 'JP' ? 'フォルダ管理' : 'MGR'}</span>
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={expandAll}
-                  className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px]"
-                  title={t.expandAll}
+                  onClick={() => {
+                    if (expandedIds.size > 0) {
+                      collapseAll();
+                    } else {
+                      expandAll();
+                    }
+                  }}
+                  className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px] cursor-pointer flex items-center justify-center shrink-0"
+                  title={expandedIds.size > 0 ? (language === 'JP' ? 'すべてのフォルダを閉じる' : 'Collapse All') : (language === 'JP' ? 'すべてのフォルダを開く' : 'Expand All')}
                 >
-                  <ChevronsDown size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={collapseAll}
-                  className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px]"
-                  title={t.collapseAll}
-                >
-                  <ChevronsUp size={12} />
+                  {expandedIds.size > 0 ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
                 </button>
               </div>
             </div>
@@ -793,41 +825,286 @@ export default function Sidebar({
           <span className="text-text-bright font-mono">{categories.length}</span>
         </div>
 
-        {/* データ管理 (JSON / HTML) */}
-        <div className="mt-2 pt-2 border-t border-border-main flex flex-col gap-1 shrink-0">
-          <div className="text-[9px] text-text-dim font-bold tracking-wider mb-0.5">{t.dataManagement}</div>
-          
-          <button 
-            onClick={onExportJson} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
-          >
-            <Download size={11} className="shrink-0" /> <span className="truncate">{t.exportJson}</span>
-          </button>
-          
-          <button 
-            onClick={() => jsonInputRef.current?.click()} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
-          >
-            <FileCode size={11} className="shrink-0" /> <span className="truncate">{t.importJson}</span>
-          </button>
-          
-          <button 
-            onClick={() => htmlInputRef.current?.click()} 
-            className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] cursor-pointer"
-          >
-            <Upload size={11} className="shrink-0" /> <span className="truncate">{t.importHtml}</span>
-          </button>
+        {/* 画面下部コマンドバー (画像 2026y10m28d_115917750_6342ad3f.png に一致する横並び＆上開きポップオーバー) */}
+        <div ref={bottomToolbarRef} className="relative mt-2 pt-1.5 border-t border-border-main shrink-0">
+          {/* 上向きポップオーバーメニュー */}
+          {activeBottomTab === 'data' && (
+            <div className="absolute bottom-full mb-1.5 left-0 w-full z-50 bg-panel-bg border-2 border-border-light shadow-2xl p-2.5 rounded-xs flex flex-col gap-1.5 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-border-main pb-1 text-[10px] font-bold text-text-bright">
+                <span className="flex items-center gap-1.5">
+                  <Terminal size={12} className="text-accent-text" />
+                  <span>{t.dataManagement}</span>
+                </span>
+                <button type="button" onClick={() => setActiveBottomTab(null)} className="text-text-dim hover:text-text-bright p-0.5">
+                  <X size={12} />
+                </button>
+              </div>
 
-          {onResetAllData && (
-            <button 
-              onClick={onResetAllData} 
-              className="w-full h-6 flex items-center justify-start px-2 gap-2 border border-border-main text-text-dim font-medium bg-base-bg hover:text-text-normal hover:bg-panel-bg hover:border-border-light transition-colors text-[9px] mt-0.5 cursor-pointer"
-              title={t.clearAllData}
-            >
-              <RotateCcw size={11} className="shrink-0" /> <span className="truncate">{t.clearAllData}</span>
-            </button>
+              <div className="bg-base-bg p-1.5 border border-border-main text-[8.5px] text-text-dim flex flex-col gap-0.5">
+                <div className="flex justify-between font-bold text-text-bright">
+                  <span>{language === 'JP' ? '自動レジューム (AUTO RESUME)' : 'AUTO RESUME'}</span>
+                  <span className="text-accent-text font-mono">[ ACTIVE ]</span>
+                </div>
+                <p className="leading-tight">
+                  {language === 'JP'
+                    ? 'アプリ起動時に保存状態を自動ロードします。PC版Google Driveアプリの同期フォルダ内のバックアップJSONも手動/自動で連携・読み込み可能です。'
+                    : 'Auto-restores saved data on app start. Compatible with Google Drive Desktop sync folders.'}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1 text-[9.5px]">
+                <button 
+                  onClick={() => { onExportJson(); setActiveBottomTab(null); }} 
+                  className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-border-main/50 transition-colors cursor-pointer"
+                >
+                  <Download size={11} className="shrink-0 text-accent-text" /> 
+                  <span className="truncate">{t.exportJson}</span>
+                </button>
+                
+                <button 
+                  onClick={() => { jsonInputRef.current?.click(); setActiveBottomTab(null); }} 
+                  className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-border-main/50 transition-colors cursor-pointer"
+                >
+                  <FileCode size={11} className="shrink-0 text-accent-text" /> 
+                  <span className="truncate">{t.importJson}</span>
+                </button>
+                
+                <button 
+                  onClick={() => { htmlInputRef.current?.click(); setActiveBottomTab(null); }} 
+                  className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-border-main/50 transition-colors cursor-pointer"
+                >
+                  <Upload size={11} className="shrink-0 text-accent-text" /> 
+                  <span className="truncate">{t.importHtml}</span>
+                </button>
+
+                {onResetAllData && (
+                  <button 
+                    onClick={() => { onResetAllData(); setActiveBottomTab(null); }} 
+                    className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-red-900/40 text-red-300 font-medium bg-red-950/20 hover:bg-red-900/40 hover:border-red-500 transition-colors mt-0.5 cursor-pointer"
+                    title={t.clearAllData}
+                  >
+                    <RotateCcw size={11} className="shrink-0" /> 
+                    <span className="truncate">{t.clearAllData}</span>
+                  </button>
+                )}
+              </div>
+            </div>
           )}
-          
+
+          {activeBottomTab === 'color' && (
+            <div className="absolute bottom-full mb-1.5 left-0 w-full z-50 bg-panel-bg border-2 border-border-light shadow-2xl p-2.5 rounded-xs flex flex-col gap-2 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-border-main pb-1 text-[10px] font-bold text-text-bright">
+                <span className="flex items-center gap-1.5">
+                  <Palette size={12} className="text-accent-text" />
+                  <span>{language === 'JP' ? 'カード・リスト配色設定' : 'COLOR TAG SETTINGS'}</span>
+                </span>
+                <button type="button" onClick={() => setActiveBottomTab(null)} className="text-text-dim hover:text-text-bright p-0.5">
+                  <X size={12} />
+                </button>
+              </div>
+
+              {/* リスト表示でのカラー反映 ON/OFF */}
+              {onToggleShowListColors && (
+                <button
+                  type="button"
+                  onClick={onToggleShowListColors}
+                  className="w-full h-6.5 px-2 flex items-center justify-between border border-border-main bg-base-bg hover:bg-border-main/50 text-[9px] font-bold cursor-pointer transition-colors rounded-xs"
+                >
+                  <span className="flex items-center gap-1.5 text-text-bright">
+                    <Palette size={11} className="text-accent-text" />
+                    <span>{language === 'JP' ? 'リスト表示でのカラー反映' : 'List Color Highlight'}</span>
+                  </span>
+                  <span className={`w-20 inline-block text-center py-0.2 rounded-xs font-mono text-[8.5px] ${
+                    showListColors ? 'bg-accent-bg text-accent-text font-bold' : 'bg-border-main text-text-dim'
+                  }`}>
+                    {showListColors ? (language === 'JP' ? 'ON (表示)' : 'ON') : (language === 'JP' ? 'OFF (非表示)' : 'OFF')}
+                  </span>
+                </button>
+              )}
+
+              <p className="text-[8.5px] text-text-dim leading-tight">
+                {language === 'JP' 
+                  ? 'カードや項目に割り当てる配色ラベルの名前を編集できます:' 
+                  : 'Customize color tag labels for cards:'}
+              </p>
+
+              <div className="flex flex-col gap-1 max-h-40 overflow-y-auto pr-1">
+                {(colorPresets || []).filter(p => p.id !== 'none').map(preset => {
+                  const isEditing = editingPresetId === preset.id;
+                  return (
+                    <div key={preset.id} className="flex items-center justify-between gap-1.5 p-1 bg-base-bg border border-border-main rounded-xs text-[9.5px]">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span 
+                          className="w-3 h-3 rounded-full shrink-0 border border-black/30 shadow-xs" 
+                          style={{ backgroundColor: preset.color }}
+                        />
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editingPresetName}
+                            onChange={(e) => setEditingPresetName(e.target.value)}
+                            className="flex-1 h-5 px-1 bg-panel-bg border border-border-light text-text-bright text-[9px] outline-none font-sans"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="truncate text-text-normal font-medium">{preset.name}</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isEditing ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editingPresetName.trim() && onUpdateColorPresets && colorPresets) {
+                                const updated = colorPresets.map(p => p.id === preset.id ? { ...p, name: editingPresetName.trim() } : p);
+                                onUpdateColorPresets(updated);
+                              }
+                              setEditingPresetId(null);
+                            }}
+                            className="p-1 bg-accent-bg text-accent-text hover:opacity-90 rounded-xs text-[8.5px] font-bold cursor-pointer"
+                            title={language === 'JP' ? '保存' : 'Save'}
+                          >
+                            <Check size={10} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPresetId(preset.id);
+                              setEditingPresetName(preset.name);
+                            }}
+                            className="p-1 text-text-dim hover:text-text-bright cursor-pointer"
+                            title={language === 'JP' ? '名前を編集' : 'Edit label'}
+                          >
+                            <Pencil size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 色全体を一括リセット（消去）ボタン */}
+              {onResetAllColors && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResetAllColors();
+                    setActiveBottomTab(null);
+                  }}
+                  className="w-full h-6.5 flex items-center justify-center gap-1.5 border border-red-900/40 text-red-300 font-bold bg-red-950/20 hover:bg-red-900/40 hover:border-red-500 transition-colors mt-0.5 cursor-pointer text-[9.5px] rounded-xs"
+                  title={language === 'JP' ? 'すべてのブックマークの配色を一括消去・リセット' : 'Reset all item colors'}
+                >
+                  <RotateCcw size={11} className="shrink-0" />
+                  <span>{language === 'JP' ? '全項目の色を一括リセット (消去)' : 'RESET ALL ITEM COLORS'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {activeBottomTab === 'stock' && (
+            <div className="absolute bottom-full mb-1.5 left-0 w-full z-50 bg-panel-bg border-2 border-border-light shadow-2xl p-2.5 rounded-xs flex flex-col gap-2 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-border-main pb-1 text-[10px] font-bold text-text-bright">
+                <span className="flex items-center gap-1.5">
+                  <Zap size={12} className="text-accent-text" />
+                  <span>{language === 'JP' ? 'ワンクリックSTOCK (Bookmarklet)' : 'STOCK BOOKMARKLET'}</span>
+                </span>
+                <button type="button" onClick={() => setActiveBottomTab(null)} className="text-text-dim hover:text-text-bright p-0.5">
+                  <X size={12} />
+                </button>
+              </div>
+
+              <p className="text-[8.5px] text-text-dim leading-tight">
+                {language === 'JP' 
+                  ? 'ブラウザのブックマークバーに登録すると、見ているページをワンクリックで本ツールに保存できます。' 
+                  : 'Save any web page to this tool with 1-click using browser bookmarklet.'}
+              </p>
+
+              {onOpenBookmarklet && (
+                <button 
+                  onClick={() => { onOpenBookmarklet(); setActiveBottomTab(null); }} 
+                  className="w-full h-7 flex items-center justify-center gap-2 border border-accent-text bg-accent-bg/40 text-accent-text font-bold hover:bg-accent-bg transition-colors text-[9.5px] cursor-pointer"
+                >
+                  <Bookmark size={12} /> 
+                  <span>{language === 'JP' ? 'Bookmarklet コードを取得' : 'Get Bookmarklet Code'}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 横並びコマンドボタンバー (画像 2026y10m28d_115917750_6342ad3f.png に完全一致) */}
+          <div className="flex items-center justify-between gap-1 bg-base-bg border border-border-main p-1 font-mono text-[9.5px]">
+            {/* >_ 03 DATA */}
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab(prev => prev === 'data' ? null : 'data')}
+              className={`flex items-center gap-1 px-1.5 py-1 border transition-colors cursor-pointer ${
+                activeBottomTab === 'data'
+                  ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
+                  : 'border-transparent text-text-dim hover:text-text-bright hover:bg-panel-bg'
+              }`}
+              title={t.dataManagement}
+            >
+              <Terminal size={11} className="shrink-0" />
+              <span className="font-bold">03 DATA</span>
+            </button>
+
+            {/* COLOR */}
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab(prev => prev === 'color' ? null : 'color')}
+              className={`flex items-center gap-1 px-1.5 py-1 border transition-colors cursor-pointer ${
+                activeBottomTab === 'color'
+                  ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
+                  : 'border-transparent text-text-dim hover:text-text-bright hover:bg-panel-bg'
+              }`}
+              title={language === 'JP' ? '色管理・配色設定' : 'Color Tag Settings'}
+            >
+              <Palette size={11} className="shrink-0 text-accent-text" />
+              <span className="font-bold">COLOR</span>
+            </button>
+
+            {/* STOCK count */}
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab(prev => prev === 'stock' ? null : 'stock')}
+              className={`flex items-center gap-1 px-1.5 py-1 border transition-colors cursor-pointer ${
+                activeBottomTab === 'stock'
+                  ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
+                  : 'border-transparent text-text-dim hover:text-text-bright hover:bg-panel-bg'
+              }`}
+              title={language === 'JP' ? 'ワンクリック保存 Bookmarklet' : '1-Click Bookmarklet'}
+            >
+              <Zap size={11} className="shrink-0 text-amber-400" />
+              <span className="font-bold">STOCK</span>
+              <span className="text-[8.5px] px-1 py-0.2 bg-border-main text-text-bright font-bold rounded-xs">
+                {notebooks.length}
+              </span>
+            </button>
+
+            {/* + Folder */}
+            <button
+              type="button"
+              onClick={() => setIsAddingRoot(true)}
+              className="p-1 text-text-dim hover:text-text-bright hover:bg-panel-bg border border-transparent transition-colors cursor-pointer"
+              title={t.newDir}
+            >
+              <Plus size={12} />
+            </button>
+
+            {/* :: Menu icon */}
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab(prev => prev ? null : 'data')}
+              className="p-1 text-text-dim hover:text-text-bright hover:bg-panel-bg border border-transparent transition-colors cursor-pointer"
+              title={t.dataManagement}
+            >
+              <GripVertical size={12} />
+            </button>
+          </div>
+
           <input type="file" accept=".json" className="hidden" ref={jsonInputRef} onChange={e => handleFileChange(e, 'json')} />
           <input type="file" accept=".html,.htm" className="hidden" ref={htmlInputRef} onChange={e => handleFileChange(e, 'html')} />
         </div>

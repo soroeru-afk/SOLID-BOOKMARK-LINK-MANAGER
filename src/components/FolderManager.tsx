@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Category, Notebook } from '../types';
 import { Language, i18n } from '../i18n';
+import { getHierarchicalCategories, getCategoryIndentedLabel } from '../utils/categoryUtils';
 import { 
   FolderTree, 
   Folder, 
@@ -810,9 +811,9 @@ export const FolderManager: React.FC<Props> = ({
                       <option value="__ROOT__">
                         -- {t.moveToRoot} --
                       </option>
-                      {parentCandidates.map(candidate => (
+                      {getHierarchicalCategories(parentCandidates).map(candidate => (
                         <option key={candidate.id} value={candidate.id}>
-                          {candidate.path || candidate.name}
+                          {getCategoryIndentedLabel(candidate, categories)}
                         </option>
                       ))}
                     </select>

@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Database, FileText, Trash2, CheckSquare, Square, Pencil, FolderOpen, Folder, ChevronRight, CornerDownRight, Layers, Plus, BookmarkPlus, GripVertical, AppWindow, ExternalLink, ChevronDown, SlidersHorizontal, Maximize2, Save, Check, LayoutGrid, List, Copy, Globe, RotateCcw, ArrowUpToLine, ArrowDownToLine, ArrowUp, ArrowDown, X, Palette, Sliders } from 'lucide-react';
 import { Notebook, Category } from '../types';
 import { Language, i18n } from '../i18n';
 import AddNotebookForm from './AddNotebookForm';
 import { openLink, LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from '../utils/windowOpener';
+import { ColorPreset, getColorPresetById } from '../utils/colorPresets';
+import { getHierarchicalCategories, getCategoryIndentedLabel } from '../utils/categoryUtils';
 
 export type ViewMode = 'list' | 'grid';
 
@@ -39,7 +41,8 @@ interface Props {
   onMoveNotebooks?: (notebookIds: string[], targetCategoryId: string) => void;
   onReorder?: (sourceId: string, targetId: string) => void;
   onMoveOrder?: (selectedIds: string[], direction: 'top' | 'up' | 'down' | 'bottom', contextIds: string[]) => void;
-  onAdd: (items: {title: string, url: string, categoryId: string}[]) => void;
+  onAdd: (items: {title: string, url: string, categoryId: string, color?: string}[]) => void;
+  onAddCategory?: (name: string, parentId?: string | null) => void;
   searchQuery: string;
   language: Language;
   listFontSize?: number;
@@ -50,6 +53,10 @@ interface Props {
   onWindowSizePresetChange?: (preset: WindowSizePreset) => void;
   customDimensions?: CustomWindowDimensions;
   onCustomDimensionsChange?: (dims: CustomWindowDimensions) => void;
+  colorPresets?: ColorPreset[];
+  showListColors?: boolean;
+  onToggleShowListColors?: () => void;
+  onResetAllColors?: () => void;
 }
 
 export default function NotebookList({ 
@@ -67,6 +74,7 @@ export default function NotebookList({
   onReorder,
   onMoveOrder,
   onAdd,
+  onAddCategory,
   searchQuery,
   language,
   listFontSize = 11,
@@ -76,7 +84,11 @@ export default function NotebookList({
   windowSizePreset = 'standard',
   onWindowSizePresetChange,
   customDimensions = { width: 1560, height: 980 },
-  onCustomDimensionsChange
+  onCustomDimensionsChange,
+  colorPresets,
+  showListColors = true,
+  onToggleShowListColors,
+  onResetAllColors
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
@@ -87,6 +99,20 @@ export default function NotebookList({
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [bulkMoveTargetCategory, setBulkMoveTargetCategory] = useState<string>('');
+
+  // カード表示サイズ（スライダー）
+  const [cardSize, setCardSize] = useState<number>(() => {
+    const saved = localStorage.getItem('grid_card_size');
+    const parsed = saved ? parseInt(saved, 10) : 240;
+    return isNaN(parsed) ? 240 : Math.max(160, Math.min(parsed, 400));
+  });
+
+  useEffect(() => {
+    localStorage.setItem('grid_card_size', String(cardSize));
+  }, [cardSize]);
+
+  // アクティブなカラーピッカーのID
+  const [activeColorPickerId, setActiveColorPickerId] = useState<string | null>(null);
 
   // ビューモード（リスト表示 / カード表示）
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -766,29 +792,84 @@ export default function NotebookList({
                 <button 
                   type="button"
                   onClick={() => setIsAddFormOpen(prev => !prev)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 border transition-colors font-bold text-[10px] tracking-wide cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1 border-2 transition-all font-bold text-[10px] tracking-wide cursor-pointer shadow-xs shrink-0 ${
                     isAddFormOpen 
-                      ? 'bg-border-light text-text-bright border-border-light' 
-                      : 'bg-base-bg hover:bg-border-main text-text-normal hover:text-text-bright border-border-main'
+                      ? 'bg-border-light text-white border-border-light' 
+                      : 'bg-base-bg hover:bg-panel-bg text-text-bright border-border-light hover:border-text-bright'
                   }`}
                   title={isAddFormOpen ? t.closeForm : t.addBookmark}
                 >
-                  <Plus size={12} className={isAddFormOpen ? "rotate-45 transition-transform" : "transition-transform"} />
+                  {isAddFormOpen ? (
+                    <X size={13} className="shrink-0" />
+                  ) : (
+                    <BookmarkPlus size={13} className="shrink-0" />
+                  )}
                   <span>{isAddFormOpen ? t.closeForm : t.addBookmark}</span>
                 </button>
 
-                {/* リスト列幅リセット */}
-                {viewMode === 'list' && (
-                  <button
-                    type="button"
-                    onClick={handleResetWidths}
-                    className="flex items-center gap-1 px-2 py-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light transition-colors text-[9px] font-mono font-bold cursor-pointer"
-                    title={language === 'JP' ? '列の幅を初期状態に戻す' : 'Reset column widths to default'}
-                  >
-                    <RotateCcw size={10} className="shrink-0" />
-                    <span>{t.resetWidths}</span>
-                  </button>
-                )}
+                {/* モード別コントロール領域（厳密な固定幅 w-[215px] を確保し、カード/リスト切替時に「ブックマーク追加」ボタンの位置が1pxもブレないように完全固定） */}
+                <div className="w-[215px] flex items-center justify-end gap-1.5 shrink-0">
+                  {viewMode === 'list' && (
+                    <>
+                      {/* リスト列幅リセット */}
+                      <button
+                        type="button"
+                        onClick={handleResetWidths}
+                        className="h-6 px-2 flex items-center gap-1 border border-border-main bg-base-bg text-text-dim hover:text-text-bright hover:border-border-light transition-colors text-[9px] font-mono font-bold cursor-pointer shrink-0"
+                        title={language === 'JP' ? '列の幅を初期状態に戻す' : 'Reset column widths to default'}
+                      >
+                        <RotateCcw size={10} className="shrink-0" />
+                        <span>{t.resetWidths}</span>
+                      </button>
+
+                      {/* リスト表示カラー表示/非表示切替 */}
+                      {onToggleShowListColors && (
+                        <button
+                          type="button"
+                          onClick={onToggleShowListColors}
+                          className={`w-[115px] h-6 flex items-center justify-center gap-1 border transition-colors text-[9px] font-mono font-bold cursor-pointer shrink-0 select-none ${
+                            showListColors
+                              ? 'border-accent-text bg-accent-bg/30 text-accent-text'
+                              : 'border-border-main bg-base-bg text-text-dim hover:text-text-bright'
+                          }`}
+                          title={language === 'JP' ? 'リスト表示でのカラーハイライトの表示/非表示を切り替え' : 'Toggle list row color highlight'}
+                        >
+                          <Palette size={10} className="shrink-0" />
+                          <span className="w-[82px] inline-block text-center font-mono leading-none">
+                            {showListColors ? (language === 'JP' ? 'リスト色: ON' : 'LIST COLOR: ON') : (language === 'JP' ? 'リスト色: OFF' : 'LIST COLOR: OFF')}
+                          </span>
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {viewMode === 'grid' && (
+                    /* カードサイズ調整スライダー（カード表示時） */
+                    <div 
+                      className="h-6 flex items-center gap-1.5 px-2 border border-border-main bg-base-bg text-text-dim hover:text-text-bright transition-colors select-none shrink-0 w-full justify-between"
+                      title={language === 'JP' ? 'カード表示のサイズを調整' : 'Adjust card size'}
+                    >
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Sliders size={10} className="text-text-dim shrink-0" />
+                        <span className="font-mono text-[9px] font-bold text-text-dim shrink-0">
+                          {language === 'JP' ? 'カード:' : 'SIZE:'}
+                        </span>
+                      </div>
+                      <input 
+                        type="range"
+                        min={160}
+                        max={380}
+                        step={10}
+                        value={cardSize}
+                        onChange={(e) => setCardSize(Number(e.target.value))}
+                        className="solid-slider w-14 sm:w-16"
+                      />
+                      <span className="font-mono font-bold text-text-bright text-[9px] w-[34px] text-right shrink-0">
+                        {cardSize}PX
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 {/* カード / リスト 切り替えトグル（内側にカード、外側にリスト） */}
                 <div className="flex items-center border border-border-main bg-base-bg overflow-hidden leading-none text-[9px] font-mono font-bold">
@@ -924,8 +1005,8 @@ export default function NotebookList({
                   >
                     <option value="" disabled>{language === 'JP' ? '移動先フォルダ...' : 'MOVE TO FOLDER...'}</option>
                     <option value="__UNASSIGNED__">{t.unassigned}</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                    {getHierarchicalCategories(categories).map(c => (
+                      <option key={c.id} value={c.id}>{getCategoryIndentedLabel(c, categories)}</option>
                     ))}
                   </select>
                   <button
@@ -977,6 +1058,7 @@ export default function NotebookList({
                 onAdd(items);
                 setIsAddFormOpen(false);
               }}
+              onAddCategory={onAddCategory}
               onClose={() => setIsAddFormOpen(false)}
               language={language}
             />
@@ -1078,6 +1160,7 @@ export default function NotebookList({
                 const host = getHostname(nb.url);
                 const isDragging = draggingId === nb.id;
                 const isDragOver = dragOverId === nb.id;
+                const preset = getColorPresetById(nb.color, colorPresets);
 
                 return (
                   <div
@@ -1093,6 +1176,10 @@ export default function NotebookList({
                     } ${isDragging ? 'opacity-40 bg-border-main/30 border-dashed border-border-light' : ''} ${
                       isDragOver ? 'border-t-2 border-t-text-bright bg-border-main/25' : ''
                     }`}
+                    style={{
+                      backgroundColor: (showListColors && preset) ? preset.bgStyle : undefined,
+                      borderLeft: (showListColors && preset) ? `4px solid ${preset.color}` : undefined
+                    }}
                     onClick={(e) => handleRowClick(nb.id, e)}
                   >
                     {/* ドラッグハンドル */}
@@ -1163,8 +1250,8 @@ export default function NotebookList({
                               className="w-full bg-input-bg border border-border-main text-text-bright text-[11px] px-2 py-0.5 outline-none font-mono truncate"
                             >
                               <option value="">{t.unassigned}</option>
-                              {categories.map(c => (
-                                <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                              {getHierarchicalCategories(categories).map(c => (
+                                <option key={c.id} value={c.id}>{getCategoryIndentedLabel(c, categories)}</option>
                               ))}
                             </select>
                           </div>
@@ -1313,13 +1400,17 @@ export default function NotebookList({
           ) : (
             /* カード型表示（K-Navigatorスタイルのカードグリッド） */
             <div className="flex flex-col pb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3.5 pt-1">
+              <div 
+                className="grid gap-3.5 pt-1" 
+                style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize}px, 1fr))` }}
+              >
                 {displayedNotebooks.map((nb) => {
                   const host = getHostname(nb.url);
                   const isSelected = selectedIds.has(nb.id);
                   const isEditing = editingId === nb.id;
                   const catName = getCategoryName(nb.categoryId);
                   const isCopied = copiedId === nb.id;
+                  const preset = getColorPresetById(nb.color, colorPresets);
 
                   const isDragging = draggingId === nb.id;
                   const isDragOver = dragOverId === nb.id;
@@ -1333,7 +1424,7 @@ export default function NotebookList({
                       onDragLeave={(e) => handleDragLeave(e, nb.id)}
                       onDrop={(e) => handleDrop(e, nb.id)}
                       onDragEnd={handleDragEnd}
-                      className={`bg-base-bg border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none cursor-pointer ${
+                      className={`border transition-all p-3.5 flex flex-col justify-between group/card relative rounded-xs select-none cursor-pointer ${
                         isSelected 
                           ? 'border-border-light bg-border-main/20 ring-1 ring-border-light shadow-md' 
                           : 'border-border-main hover:border-border-light hover:bg-border-main/10'
@@ -1342,6 +1433,10 @@ export default function NotebookList({
                       } ${
                         isDragOver ? 'ring-2 ring-text-bright border-text-bright bg-border-main/30 scale-[1.01]' : ''
                       }`}
+                      style={{
+                        backgroundColor: preset ? preset.bgStyle : undefined,
+                        borderColor: preset ? preset.borderStyle : undefined
+                      }}
                       onClick={(e) => handleRowClick(nb.id, e)}
                     >
                       {/* 上部ヘッダー: ドラッグハンドル + チェックボックス + ドメインバッジ + アクションボタン群 */}
@@ -1373,7 +1468,7 @@ export default function NotebookList({
 
                             {/* ドメイン/ホスト名バッジ */}
                             <div 
-                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[150px] shadow-xs"
+                              className="flex items-center gap-1.5 px-2 py-0.5 bg-input-bg border border-border-main rounded-xs text-[10px] font-mono font-bold text-text-bright truncate max-w-[140px] shadow-xs"
                               title={host}
                             >
                               <img 
@@ -1387,7 +1482,66 @@ export default function NotebookList({
                           </div>
 
                           {/* アクションボタングループ */}
-                          <div className="flex items-center gap-0.5 shrink-0" onDragStart={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-0.5 shrink-0 relative" onDragStart={(e) => e.stopPropagation()}>
+                            {/* 配色カラーラベル設定ボタン */}
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setActiveColorPickerId(prev => prev === nb.id ? null : nb.id);
+                                }}
+                                className="p-1 text-text-dim hover:text-text-bright hover:bg-border-main/50 transition-colors rounded-xs cursor-pointer"
+                                title={language === 'JP' ? 'カード背景色・カラーラベルの選択' : 'Set Card Color'}
+                              >
+                                <Palette size={12} style={{ color: preset ? preset.color : undefined }} />
+                              </button>
+
+                              {/* カラーポップオーバー */}
+                              {activeColorPickerId === nb.id && (
+                                <div 
+                                  className="absolute right-0 top-full mt-1 w-48 bg-panel-bg border-2 border-border-light shadow-2xl z-50 p-2 rounded-xs font-mono text-[10px]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="text-[9px] text-text-dim font-bold border-b border-border-main pb-1 mb-1.5 flex items-center justify-between">
+                                    <span>{language === 'JP' ? '配色カラーラベル' : 'COLOR LABEL'}</span>
+                                    <button type="button" onClick={() => setActiveColorPickerId(null)} className="text-text-dim hover:text-text-bright p-0.5">
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+
+                                  <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                                    {(colorPresets || []).map(p => {
+                                      const isCurrent = (nb.color || 'none') === p.id;
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => {
+                                            onUpdate(nb.id, { color: p.id === 'none' ? undefined : p.id });
+                                            setActiveColorPickerId(null);
+                                          }}
+                                          className={`flex items-center justify-between p-1 rounded-xs transition-colors cursor-pointer text-left ${
+                                            isCurrent ? 'bg-accent-bg text-accent-text font-bold' : 'hover:bg-base-bg text-text-normal hover:text-text-bright'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <span 
+                                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/30" 
+                                              style={{ backgroundColor: p.color }}
+                                            />
+                                            <span className="truncate text-[9.5px]">{p.name}</span>
+                                          </div>
+                                          {isCurrent && <Check size={11} className="shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
                             {/* 独立ウィンドウで開く */}
                             <button
                               type="button"
@@ -1487,8 +1641,8 @@ export default function NotebookList({
                                 className="w-full bg-base-bg border border-border-main text-text-bright text-[10px] px-1.5 py-1 outline-none font-mono truncate font-bold"
                               >
                                 <option value="">{t.unassigned}</option>
-                                {categories.map(c => (
-                                  <option key={c.id} value={c.id}>{c.path || c.name}</option>
+                                {getHierarchicalCategories(categories).map(c => (
+                                  <option key={c.id} value={c.id}>{getCategoryIndentedLabel(c, categories)}</option>
                                 ))}
                               </select>
                             </div>
@@ -1547,9 +1701,21 @@ export default function NotebookList({
                         )}
                       </div>
 
-                      {/* フッター行: 日付 + OPEN → ボタン (K-Navigatorスタイル) */}
+                      {/* フッター行: カラーラベル + 日付 + OPEN → ボタン */}
                       <div className="pt-2.5 border-t border-border-main/50 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-text-dim text-[9px]">{formatDate(nb.createdAt)}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {preset && (
+                            <span 
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8.5px] font-mono font-bold rounded-xs border shadow-2xs shrink-0 truncate max-w-[100px]"
+                              style={{ backgroundColor: preset.bgStyle, color: preset.color, borderColor: preset.borderStyle }}
+                              title={preset.name}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
+                              <span className="truncate">{preset.name}</span>
+                            </span>
+                          )}
+                          <span className="text-text-dim text-[9px] shrink-0">{formatDate(nb.createdAt)}</span>
+                        </div>
 
                         {/* OPEN → ボタン */}
                         <button

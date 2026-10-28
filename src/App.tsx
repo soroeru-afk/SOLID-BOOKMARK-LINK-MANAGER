@@ -14,14 +14,17 @@ import { BookmarkletModal } from './components/BookmarkletModal';
 import { IncomingBookmarkModal } from './components/IncomingBookmarkModal';
 import { FolderManager } from './components/FolderManager';
 import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
+import { insertCategoryInHierarchy } from './utils/categoryUtils';
+import { ColorPreset, getColorPresets, saveColorPresets } from './utils/colorPresets';
 
-export type Theme = 'black' | 'red' | 'dark' | 'light';
+export type Theme = 'black' | 'red' | 'dark' | 'light' | 'paper' | 'pink';
 export type FontFamily = 'meiryo' | 'noto' | 'mono' | 'yugothic' | 'biz';
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('theme');
-    if (saved === 'black' || saved === 'red' || saved === 'dark' || saved === 'light') {
+    const validThemes: Theme[] = ['black', 'red', 'dark', 'light', 'paper', 'pink'];
+    if (saved && validThemes.includes(saved as Theme)) {
       return saved as Theme;
     }
     return 'black';
@@ -137,14 +140,48 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchScope, setSearchScope] = useState<SearchScope>('current');
 
+  // カード配色カラーラベルステート
+  const [colorPresets, setColorPresets] = useState<ColorPreset[]>(() => getColorPresets());
+
+  const handleUpdateColorPresets = (newPresets: ColorPreset[]) => {
+    setColorPresets(newPresets);
+    saveColorPresets(newPresets);
+  };
+
+  // リスト表示でのカラー反映 表示・非表示ステート (localStorage永続化)
+  const [showListColors, setShowListColors] = useState<boolean>(() => {
+    const saved = localStorage.getItem('show_list_colors');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleShowListColors = () => {
+    setShowListColors(prev => {
+      const next = !prev;
+      localStorage.setItem('show_list_colors', String(next));
+      return next;
+    });
+  };
+
+  // 全ブックマークの配色を一括消去・リセット
+  const handleResetAllColors = () => {
+    setNotebooks(prev => prev.map(nb => ({ ...nb, color: undefined })));
+    setNotification(
+      language === 'JP'
+        ? 'すべてのブックマークの配色（カラー設定）を一括リセット（消去）しました'
+        : 'ALL BOOKMARK COLOR TAGS RESET'
+    );
+  };
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
     // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR base-bg)
     let themeColorHex = '#0a0d12'; // default black
-    if (theme === 'dark') themeColorHex = '#0d131f';
-    else if (theme === 'red') themeColorHex = '#0d0404';
+    if (theme === 'dark') themeColorHex = '#090f19';
+    else if (theme === 'red') themeColorHex = '#090203';
+    else if (theme === 'paper') themeColorHex = '#ece8e1';
+    else if (theme === 'pink') themeColorHex = '#141013';
     else if (theme === 'light') themeColorHex = '#e2e8f0';
 
     let metaTheme = document.querySelector('meta[name="theme-color"]');
@@ -304,7 +341,7 @@ export default function App() {
       parentId: parentId || null,
       path
     };
-    setCategories([...categories, newCategory]);
+    setCategories(prev => insertCategoryInHierarchy(prev, newCategory));
   };
 
   const updateCategory = (id: string, name: string) => {
@@ -596,17 +633,34 @@ export default function App() {
   const handleImportJson = (content: string) => {
     try {
       const data = JSON.parse(content);
-      if (data.categories && data.notebooks) {
-        setCategories(data.categories);
-        setNotebooks(data.notebooks);
+      if (data && (Array.isArray(data.categories) || Array.isArray(data.notebooks))) {
+        const importedCats: Category[] = Array.isArray(data.categories) ? data.categories : [];
+        const importedNbs: Notebook[] = Array.isArray(data.notebooks) ? data.notebooks : [];
+
+        // 既存データを保持しながらマージ（重複IDを排除）
+        setCategories(prev => {
+          const existingIds = new Set(prev.map(c => c.id));
+          const newCats = importedCats.filter(c => c.id && !existingIds.has(c.id));
+          return [...prev, ...newCats];
+        });
+
+        setNotebooks(prev => {
+          const existingIds = new Set(prev.map(nb => nb.id));
+          const newNbs = importedNbs.filter(nb => nb.id && !existingIds.has(nb.id));
+          return [...newNbs, ...prev];
+        });
+
         setNotification(
           language === 'JP' 
-            ? `JSONインポート完了: フォルダ ${data.categories.length} 件 / ブックマーク ${data.notebooks.length} 件`
-            : `JSON IMPORTED: ${data.categories.length} FOLDERS / ${data.notebooks.length} BOOKMARKS`
+            ? `JSON統合インポート完了: フォルダ ${importedCats.length} 件 / ブックマーク ${importedNbs.length} 件を取り込み（既存データはそのまま保持されます）`
+            : `JSON MERGED: ${importedCats.length} FOLDERS / ${importedNbs.length} BOOKMARKS PRESERVED`
         );
       }
     } catch {
       console.error("Failed to parse JSON");
+      setNotification(
+        language === 'JP' ? 'JSONデータの解析中にエラーが発生しました' : 'ERROR PARSING JSON DATA'
+      );
     }
   };
 
@@ -623,13 +677,22 @@ export default function App() {
         return;
       }
 
-      setCategories(prev => [...prev, ...importedCats]);
-      setNotebooks(prev => [...importedNbs, ...prev]);
+      setCategories(prev => {
+        const existingIds = new Set(prev.map(c => c.id));
+        const newCats = importedCats.filter(c => !existingIds.has(c.id));
+        return [...prev, ...newCats];
+      });
+
+      setNotebooks(prev => {
+        const existingIds = new Set(prev.map(nb => nb.id));
+        const newNbs = importedNbs.filter(nb => !existingIds.has(nb.id));
+        return [...newNbs, ...prev];
+      });
 
       setNotification(
         language === 'JP'
-          ? `インポート完了: フォルダ ${stats.totalFolders} 件 / ブックマーク ${stats.totalBookmarks} 件を取り込みました`
-          : `IMPORTED: ${stats.totalFolders} FOLDERS / ${stats.totalBookmarks} BOOKMARKS`
+          ? `HTMLインポート統合完了: フォルダ ${stats.totalFolders} 件 / ブックマーク ${stats.totalBookmarks} 件を取り込みました（既存データ保持）`
+          : `IMPORTED: ${stats.totalFolders} FOLDERS / ${stats.totalBookmarks} BOOKMARKS PRESERVED`
       );
     } catch (e) {
       console.error("Failed to parse HTML bookmarks", e);
@@ -796,6 +859,11 @@ export default function App() {
         sidebarPosition={sidebarPosition}
         onOpenFolderManager={() => setMainView(prev => prev === 'folders' ? 'bookmarks' : 'folders')}
         isFolderManagerActive={mainView === 'folders'}
+        colorPresets={colorPresets}
+        onUpdateColorPresets={handleUpdateColorPresets}
+        showListColors={showListColors}
+        onToggleShowListColors={toggleShowListColors}
+        onResetAllColors={handleResetAllColors}
       />
 
       <main className="flex-1 p-4 md:p-6 flex flex-col gap-4 max-h-screen overflow-hidden">
@@ -896,6 +964,7 @@ export default function App() {
               onReorder={reorderNotebooks}
               onMoveOrder={moveNotebooksOrder}
               onAdd={addNotebooks}
+              onAddCategory={addCategory}
               searchQuery={searchQuery}
               language={language} 
               listFontSize={listFontSize}
@@ -906,6 +975,10 @@ export default function App() {
               onWindowSizePresetChange={setWindowSizePreset}
               customDimensions={customDimensions}
               onCustomDimensionsChange={setCustomDimensions}
+              colorPresets={colorPresets}
+              showListColors={showListColors}
+              onToggleShowListColors={toggleShowListColors}
+              onResetAllColors={handleResetAllColors}
             />
           </>
         )}
@@ -931,6 +1004,7 @@ export default function App() {
         categories={categories}
         language={language}
         onSave={handleSaveIncomingBookmark}
+        onAddCategory={addCategory}
         onCancel={() => setIncomingBookmark(null)}
       />
 

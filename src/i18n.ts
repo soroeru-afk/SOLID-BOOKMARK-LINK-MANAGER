@@ -68,7 +68,7 @@ export const i18n = {
     searchModule: "02 SEARCH & FILTER",
     searchScopeCurrent: "CURRENT DIR (INCL. SUB-DIRS)",
     searchScopeAll: "ALL BOOKMARKS",
-    addBookmark: "+ ADD BOOKMARK",
+    addBookmark: "ADD BOOKMARK",
     closeForm: "CANCEL",
     matchesFound: "MATCHES",
     clearSearch: "CLEAR",
@@ -140,6 +140,7 @@ export const i18n = {
     rootOnly: "ROOT ONLY",
     subOnly: "SUBFOLDERS ONLY",
     dragToReorder: "DRAG TO REORDER SIBLINGS",
+    bookmarkletSetup: "1-CLICK SAVE BOOKMARKLET",
   },
   JP: {
     appTitle: "SOLID BOOKMARK LINK MANAGER",
@@ -208,7 +209,7 @@ export const i18n = {
     searchModule: "02 検索＆フィルター",
     searchScopeCurrent: "現在のフォルダ（配下全階層含む）",
     searchScopeAll: "すべてのデータ（全体）",
-    addBookmark: "+ ブックマーク追加",
+    addBookmark: "ブックマーク追加",
     closeForm: "閉じる",
     matchesFound: "件一致",
     clearSearch: "クリア",
@@ -280,5 +281,6 @@ export const i18n = {
     rootOnly: "ルートのみ",
     subOnly: "サブフォルダのみ",
     dragToReorder: "ドラッグして同階層で並び替え",
+    bookmarkletSetup: "1クリック保存（ブックマークレット）設定",
   }
 };
