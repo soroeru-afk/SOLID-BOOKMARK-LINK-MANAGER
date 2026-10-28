@@ -37,6 +37,13 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
     }
   }, [activeCategoryId]);
 
+  // HTMLエンティティのデコード
+  const decodeHtmlEntities = (str: string): string => {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = str;
+    return txt.value;
+  };
+
   const fetchTitle = async (targetUrl: string) => {
     let cleanUrl = targetUrl.trim();
     if (!cleanUrl) return;
@@ -45,13 +52,65 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
     }
 
     setIsFetching(true);
+    let resolvedTitle = '';
+
     try {
-      const response = await fetch(`/api/fetch-title?url=${encodeURIComponent(cleanUrl)}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.title && data.title.trim()) {
-          setTitle(data.title.trim());
+      // Tier 1: Jina Reader API (CORS完全対応・高速・日本語タイトル抽出に極めて強力)
+      try {
+        const jinaRes = await fetch(`https://r.jina.ai/${cleanUrl}`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-No-Cache': 'true'
+          },
+          signal: AbortSignal.timeout(6000)
+        });
+        if (jinaRes.ok) {
+          const data = await jinaRes.json();
+          if (data?.data?.title && typeof data.data.title === 'string' && data.data.title.trim()) {
+            resolvedTitle = decodeHtmlEntities(data.data.title.trim());
+          }
         }
+      } catch (e) {
+        console.warn('Tier 1 (Jina) title fetch failed, trying fallback...', e);
+      }
+
+      // Tier 2: Microlink API (フォールバック)
+      if (!resolvedTitle) {
+        try {
+          const mlRes = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}`, {
+            signal: AbortSignal.timeout(6000)
+          });
+          if (mlRes.ok) {
+            const data = await mlRes.json();
+            if (data?.data?.title && typeof data.data.title === 'string' && data.data.title.trim()) {
+              resolvedTitle = decodeHtmlEntities(data.data.title.trim());
+            }
+          }
+        } catch (e) {
+          console.warn('Tier 2 (Microlink) title fetch failed, trying local server...', e);
+        }
+      }
+
+      // Tier 3: ローカル開発サーバー (/api/fetch-title)
+      if (!resolvedTitle) {
+        try {
+          const localRes = await fetch(`/api/fetch-title?url=${encodeURIComponent(cleanUrl)}`, {
+            signal: AbortSignal.timeout(3000)
+          });
+          if (localRes.ok) {
+            const data = await localRes.json();
+            if (data?.title && typeof data.title === 'string' && data.title.trim()) {
+              resolvedTitle = decodeHtmlEntities(data.title.trim());
+            }
+          }
+        } catch {
+          // ignore local server error on static Pages
+        }
+      }
+
+      // 取得成功時にタイトルを設定
+      if (resolvedTitle) {
+        setTitle(resolvedTitle);
       }
     } catch (error) {
       console.error('Failed to fetch title', error);
@@ -63,16 +122,19 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setUrl(val);
-    if (!title.trim() && val.trim().length > 8 && (val.startsWith('http://') || val.startsWith('https://'))) {
-      fetchTitle(val);
+    const clean = val.trim();
+    if (!title.trim() && clean.length > 7 && (clean.startsWith('http://') || clean.startsWith('https://') || clean.includes('.'))) {
+      fetchTitle(clean);
     }
   };
 
   const handleUrlPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData('text');
-    if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://'))) {
+    if (pastedText && pastedText.trim()) {
+      const clean = pastedText.trim();
+      setUrl(clean);
       if (!title.trim()) {
-        fetchTitle(pastedText);
+        fetchTitle(clean);
       }
     }
   };
@@ -222,7 +284,15 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
               {/* タイトル入力 */}
               <div className="flex-[1.5] w-full">
                 <label className="block text-[9.5px] text-text-dim mb-1 tracking-wider flex items-center justify-between">
-                  <span>{t.title}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>{t.title}</span>
+                    {isFetching && (
+                      <span className="inline-flex items-center gap-1 text-[8.5px] text-accent-text font-bold animate-pulse">
+                        <Loader2 size={10} className="animate-spin" />
+                        <span>{language === 'JP' ? 'タイトル自動取得中...' : 'Fetching title...'}</span>
+                      </span>
+                    )}
+                  </span>
                   <span className="text-[8.5px] text-text-dim/60">{language === 'JP' ? '※URL入力で自動補完されます' : 'Auto-filled from URL'}</span>
                 </label>
                 <input
