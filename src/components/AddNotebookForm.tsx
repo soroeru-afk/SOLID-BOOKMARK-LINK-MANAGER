@@ -3,6 +3,7 @@ import { ChevronDown, Database, Type, X, Plus, FolderPlus, Check, Loader2 } from
 import { Category } from '../types';
 import { Language, i18n } from '../i18n';
 import { getHierarchicalCategories, getCategoryIndentedLabel } from '../utils/categoryUtils';
+import { fetchPageTitle } from '../utils/titleFetcher';
 
 interface Props {
   categories: Category[];
@@ -37,17 +38,6 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
     }
   }, [activeCategoryId]);
 
-// HTMLエンティティのデコード
-  const decodeHtmlEntities = (str: string): string => {
-    try {
-      const txt = document.createElement('textarea');
-      txt.innerHTML = str;
-      return txt.value;
-    } catch {
-      return str;
-    }
-  };
-
   const fetchTitle = async (targetUrl: string) => {
     let cleanUrl = sanitizeUrl(targetUrl);
     if (!cleanUrl) return;
@@ -56,84 +46,10 @@ export default function AddNotebookForm({ categories, activeCategoryId, onAdd, o
     }
 
     setIsFetching(true);
-    let resolvedTitle = '';
-
     try {
-      // 1. YouTube専用 oEmbed API（ブラウザ直アクセス最速＆100%成功）
-      if (/(?:youtube\.com\/(?:watch\?|shorts\/|live\/)|youtu\.be\/)/i.test(cleanUrl)) {
-        try {
-          const ytRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`, {
-            signal: AbortSignal.timeout(4000)
-          });
-          if (ytRes.ok) {
-            const ytData = await ytRes.json();
-            if (ytData?.title && typeof ytData.title === 'string' && ytData.title.trim()) {
-              resolvedTitle = decodeHtmlEntities(ytData.title.trim());
-            }
-          }
-        } catch (e) {
-          console.warn('YouTube oEmbed title fetch failed, fallback to Jina', e);
-        }
-      }
-
-      // 2. Tier 1: Jina Reader API (CORS完全対応・最速・日本語タイトル抽出に圧倒的な精度)
-      if (!resolvedTitle) {
-        try {
-          const jinaRes = await fetch(`https://r.jina.ai/${cleanUrl}`, {
-            headers: {
-              'Accept': 'application/json',
-              'X-No-Cache': 'true'
-            },
-            signal: AbortSignal.timeout(6000)
-          });
-          if (jinaRes.ok) {
-            const data = await jinaRes.json();
-            if (data?.data?.title && typeof data.data.title === 'string' && data.data.title.trim()) {
-              resolvedTitle = decodeHtmlEntities(data.data.title.trim());
-            }
-          }
-        } catch (e) {
-          console.warn('Tier 1 (Jina) title fetch failed, trying fallback...', e);
-        }
-      }
-
-      // 3. Tier 2: Microlink API (フォールバック)
-      if (!resolvedTitle) {
-        try {
-          const mlRes = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(cleanUrl)}`, {
-            signal: AbortSignal.timeout(5000)
-          });
-          if (mlRes.ok) {
-            const data = await mlRes.json();
-            if (data?.data?.title && typeof data.data.title === 'string' && data.data.title.trim()) {
-              resolvedTitle = decodeHtmlEntities(data.data.title.trim());
-            }
-          }
-        } catch (e) {
-          console.warn('Tier 2 (Microlink) title fetch failed, trying local server...', e);
-        }
-      }
-
-      // 4. Tier 3: ローカル開発サーバー (/api/fetch-title)
-      if (!resolvedTitle) {
-        try {
-          const localRes = await fetch(`/api/fetch-title?url=${encodeURIComponent(cleanUrl)}`, {
-            signal: AbortSignal.timeout(3000)
-          });
-          if (localRes.ok) {
-            const data = await localRes.json();
-            if (data?.title && typeof data.title === 'string' && data.title.trim()) {
-              resolvedTitle = decodeHtmlEntities(data.title.trim());
-            }
-          }
-        } catch {
-          // ignore local server error on static Pages
-        }
-      }
-
-      // タイトルが取得できたら自動設定
-      if (resolvedTitle && resolvedTitle.trim()) {
-        setTitle(resolvedTitle.trim());
+      const pageTitle = await fetchPageTitle(cleanUrl);
+      if (pageTitle && pageTitle.trim()) {
+        setTitle(pageTitle.trim());
       }
     } catch (error) {
       console.error('Failed to fetch title', error);
