@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import SearchModule, { SearchScope } from './components/SearchModule';
 import NotebookList from './components/NotebookList';
 import Header from './components/Header';
+import IconModal from './components/IconModal';
 import { Category, Notebook } from './types';
 import { Language } from './i18n';
 import { parseNetscapeBookmarks } from './utils/bookmarkParser';
@@ -15,6 +16,7 @@ import { FolderManager } from './components/FolderManager';
 import { LinkOpenMode, WindowSizePreset, CustomWindowDimensions } from './utils/windowOpener';
 import { insertCategoryInHierarchy } from './utils/categoryUtils';
 import { ColorPreset, getColorPresets, saveColorPresets } from './utils/colorPresets';
+import { ImportComparisonModal, ComparisonItem } from './components/ImportComparisonModal';
 
 export type Theme = 'black' | 'red' | 'dark' | 'light' | 'paper' | 'pink';
 export type FontFamily = 'meiryo' | 'noto' | 'mono' | 'yugothic' | 'biz';
@@ -39,13 +41,76 @@ export default function App() {
 
   const [categories, setCategories] = useState<Category[]>(() => {
     const saved = localStorage.getItem('categories');
-    return saved ? JSON.parse(saved) : [{ id: '1', name: 'General', path: 'General' }];
+    if (saved) {
+      try {
+        const parsed: Category[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // カオルさまご指定: 「★ ストックリスト」固定フォルダーの存在を確実に保証
+          const hasStock = parsed.some(c => c.id === 'stock_root' || c.name.includes('ストックリスト'));
+          // 空の初期Generalフォルダーをクリーンアップ（ブックマークが属していない場合）
+          const cleaned = parsed.filter(c => !(c.id === '1' && c.name === 'General'));
+          if (!hasStock) {
+            return [{ id: 'stock_root', name: '★ ストックリスト', path: '★ ストックリスト' }, ...cleaned];
+          }
+          return cleaned.length > 0 ? cleaned : [{ id: 'stock_root', name: '★ ストックリスト', path: '★ ストックリスト' }];
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+    return [
+      { id: 'stock_root', name: '★ ストックリスト', path: '★ ストックリスト' }
+    ];
   });
 
   const [notebooks, setNotebooks] = useState<Notebook[]>(() => {
     const saved = localStorage.getItem('notebooks');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // カオルさまご指定: 「★ ストックリスト」固定フォルダーの特定
+  const stockCategory = useMemo(() => {
+    return categories.find(c => c.id === 'stock_root' || c.name.includes('ストックリスト')) || categories[0];
+  }, [categories]);
+
+  // ストックリスト配下のすべてのカテゴリID（自身およびサブカテゴリー群）
+  const stockCategoryIds = useMemo(() => {
+    if (!stockCategory) return new Set<string>();
+    const ids = new Set<string>([stockCategory.id]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const c of categories) {
+        if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) {
+          ids.add(c.id);
+          added = true;
+        }
+      }
+    }
+    return ids;
+  }, [categories, stockCategory]);
+
+  // ストックリスト配下に属するブックマーク一覧
+  const stockNotebooks = useMemo(() => {
+    return notebooks.filter(nb => nb.categoryId && stockCategoryIds.has(nb.categoryId));
+  }, [notebooks, stockCategoryIds]);
+
+  /**
+   * カオルさまご指定: ストックリスト内サブカテゴリー同士のドラッグ＆ドロップ並び替え
+   */
+  const handleReorderStockCategories = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setCategories(prev => {
+      const sourceIdx = prev.findIndex(c => c.id === sourceId);
+      const targetIdx = prev.findIndex(c => c.id === targetId);
+      if (sourceIdx === -1 || targetIdx === -1) return prev;
+
+      const updated = [...prev];
+      const [moved] = updated.splice(sourceIdx, 1);
+      updated.splice(targetIdx, 0, moved);
+      return updated;
+    });
+  };
   
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(() => {
     const saved = localStorage.getItem('active_category_id');
@@ -73,6 +138,14 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [isBookmarkletModalOpen, setIsBookmarkletModalOpen] = useState<boolean>(false);
+  const [isIconModalOpen, setIsIconModalOpen] = useState<boolean>(false);
+
+  // インポート比較モーダル用ステート (Prompt Mixer風 比較・重複防止)
+  const [comparisonImportData, setComparisonImportData] = useState<{
+    incomingCategories: Category[];
+    incomingNotebooks: Notebook[];
+    initialScope?: 'stock' | 'all';
+  } | null>(null);
 
   // メイン画面の表示モード (ブックマーク一覧 'bookmarks' / フォルダー管理 'folders')
   const [mainView, setMainView] = useState<'bookmarks' | 'folders'>('bookmarks');
@@ -188,11 +261,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
-    // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR & SOLID AUDIO base-bg)
+    // Dynamic meta theme-color sync for browser header/titlebar (matching K-NAVIGATOR base-bg)
     let themeColorHex = '#0a0d12'; // default black
     if (theme === 'dark') themeColorHex = '#090f19';
     else if (theme === 'red') themeColorHex = '#090203';
-    else if (theme === 'paper') themeColorHex = '#ebe4d8';
+    else if (theme === 'paper') themeColorHex = '#ece8e1';
     else if (theme === 'pink') themeColorHex = '#141013';
     else if (theme === 'light') themeColorHex = '#e2e8f0';
 
@@ -458,6 +531,18 @@ export default function App() {
     setCategories(newCategories);
   };
 
+  /**
+   * カオルさまご指定: サイドバーの最上位（ルート）カテゴリのドラッグ＆ドロップ並び替え
+   */
+  const handleReorderRootCategories = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const rootCats = categories.filter(c => !c.parentId);
+    const sourceIndex = rootCats.findIndex(c => c.id === sourceId);
+    const targetIndex = rootCats.findIndex(c => c.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    reorderCategorySiblings(null, sourceIndex, targetIndex);
+  };
+
   const changeParentCategory = (categoryId: string, newParentId: string | null) => {
     const cat = categories.find(c => c.id === categoryId);
     if (!cat) return;
@@ -550,8 +635,8 @@ export default function App() {
     const catName = targetCatObj ? (targetCatObj.path || targetCatObj.name) : (language === 'JP' ? '未割り当て' : 'Unassigned');
     setNotification(
       language === 'JP'
-        ? `「${realTarget.title}」のショートカットを『${catName}』フォルダに作成しました`
-        : `Created shortcut for "${realTarget.title}" in "${catName}"`
+        ? `「${targetNotebook.title}」のショートカットを「${catName}」フォルダに作成しました`
+        : `Created shortcut for "${targetNotebook.title}" in "${catName}"`
     );
   };
 
@@ -587,7 +672,7 @@ export default function App() {
       setNotebooks(prev => [...newShortcuts, ...prev]);
       setNotification(
         language === 'JP'
-          ? `${newShortcuts.length} 件のショートカットを『${destName}』フォルダに作成しました`
+          ? `${newShortcuts.length} 件のショートカットを「${destName}」フォルダに作成しました`
           : `Created ${newShortcuts.length} shortcut(s) in "${destName}"`
       );
     }
@@ -722,6 +807,64 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * カオルさまご指定: ストックリスト専用の個別バックアップ (JSON)
+   */
+  const handleExportStockJson = () => {
+    const stockCats = categories.filter(c => stockCategoryIds.has(c.id));
+    const data = {
+      isStockListExport: true,
+      exportedAt: new Date().toISOString(),
+      categories: stockCats,
+      notebooks: stockNotebooks
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stocklist_backup_${new Date().getTime()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setNotification(
+      language === 'JP' ? `★ ストックリスト（${stockNotebooks.length}件）をエクスポートしました` : 'EXPORTED STOCK LIST'
+    );
+  };
+
+  /**
+   * カオルさまご指定: ストックリスト比較インポートのファイル選択ハンドラー
+   */
+  const stockFileInputRef = useRef<HTMLInputElement>(null);
+  const handleOpenStockImport = () => {
+    stockFileInputRef.current?.click();
+  };
+
+  const handleStockFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      try {
+        const data = JSON.parse(content);
+        if (data && (Array.isArray(data.categories) || Array.isArray(data.notebooks))) {
+          const importedCats: Category[] = Array.isArray(data.categories) ? data.categories : [];
+          const importedNbs: Notebook[] = Array.isArray(data.notebooks) ? data.notebooks : [];
+
+          setComparisonImportData({
+            incomingCategories: importedCats,
+            incomingNotebooks: importedNbs,
+            initialScope: 'stock'
+          });
+        }
+      } catch (err) {
+        setNotification(language === 'JP' ? 'JSONデータの解析中にエラーが発生しました' : 'ERROR PARSING JSON');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleImportJson = (content: string) => {
     try {
       const data = JSON.parse(content);
@@ -729,24 +872,21 @@ export default function App() {
         const importedCats: Category[] = Array.isArray(data.categories) ? data.categories : [];
         const importedNbs: Notebook[] = Array.isArray(data.notebooks) ? data.notebooks : [];
 
-        // 既存データを保持しながらマージ（重複IDを排除）
-        setCategories(prev => {
-          const existingIds = new Set(prev.map(c => c.id));
-          const newCats = importedCats.filter(c => c.id && !existingIds.has(c.id));
-          return [...prev, ...newCats];
-        });
+        if (importedNbs.length === 0 && importedCats.length === 0) {
+          setNotification(
+            language === 'JP' ? 'インポート対象のデータが見つかりませんでした' : 'NO DATA FOUND IN JSON FILE'
+          );
+          return;
+        }
 
-        setNotebooks(prev => {
-          const existingIds = new Set(prev.map(nb => nb.id));
-          const newNbs = importedNbs.filter(nb => nb.id && !existingIds.has(nb.id));
-          return [...newNbs, ...prev];
+        // カオルさまご指定: Prompt Mixer風の比較インポートモーダルを開いてユーザーが選択・確認
+        // ストックリスト形式のバックアップなら自動で stock スコープ、通常なら選択可能
+        const isStock = Boolean(data.isStockListExport);
+        setComparisonImportData({
+          incomingCategories: importedCats,
+          incomingNotebooks: importedNbs,
+          initialScope: isStock ? 'stock' : 'stock'
         });
-
-        setNotification(
-          language === 'JP' 
-            ? `JSON統合インポート完了: フォルダ ${importedCats.length} 件 / ブックマーク ${importedNbs.length} 件を取り込み（既存データはそのまま保持されます）`
-            : `JSON MERGED: ${importedCats.length} FOLDERS / ${importedNbs.length} BOOKMARKS PRESERVED`
-        );
       }
     } catch {
       console.error("Failed to parse JSON");
@@ -756,9 +896,14 @@ export default function App() {
     }
   };
 
+  /**
+   * カオルさまご指定: Chrome等からの大容量HTMLブックマークインポート
+   * 既存フォルダ（ブックマークバー等）とパス照合して同一フォルダに統合（空の重複フォルダを完全に防止）
+   * 既存ブックマークと重複するアイテムは自動スキップし、下部に整然と高速一括マージ
+   */
   const handleImportHtml = (content: string) => {
     try {
-      const { categories: importedCats, notebooks: importedNbs, stats } = parseNetscapeBookmarks(content);
+      const { categories: importedCats, notebooks: importedNbs } = parseNetscapeBookmarks(content);
       
       if (importedCats.length === 0 && importedNbs.length === 0) {
         setNotification(
@@ -769,22 +914,72 @@ export default function App() {
         return;
       }
 
-      setCategories(prev => {
-        const existingIds = new Set(prev.map(c => c.id));
-        const newCats = importedCats.filter(c => !existingIds.has(c.id));
-        return [...prev, ...newCats];
-      });
+      // 1. 既存フォルダとのパス照合マッピング（重複空フォルダを完全に防止）
+      const normalizePath = (p: string) => p.trim().replace(/\s+/g, ' ').toLowerCase();
 
-      setNotebooks(prev => {
-        const existingIds = new Set(prev.map(nb => nb.id));
-        const newNbs = importedNbs.filter(nb => !existingIds.has(nb.id));
-        return [...newNbs, ...prev];
-      });
+      const existingPathToIdMap = new Map<string, string>();
+      for (const c of categories) {
+        const p = c.path || c.name;
+        if (p) existingPathToIdMap.set(normalizePath(p), c.id);
+      }
+
+      const importedCatIdToActualIdMap = new Map<string, string>();
+      const newCatsToAdd: Category[] = [];
+
+      for (const inc of importedCats) {
+        const normP = normalizePath(inc.path || inc.name || '');
+        const existingId = existingPathToIdMap.get(normP);
+        if (existingId) {
+          // すでに同じ名前・パスのフォルダが存在する場合 -> 既存フォルダのIDを使用（新規フォルダは作らない！）
+          importedCatIdToActualIdMap.set(inc.id, existingId);
+        } else {
+          // 本当に新しいフォルダのみ追加
+          newCatsToAdd.push(inc);
+          importedCatIdToActualIdMap.set(inc.id, inc.id);
+          existingPathToIdMap.set(normP, inc.id);
+        }
+      }
+
+      // フォルダを更新
+      if (newCatsToAdd.length > 0) {
+        setCategories(prev => [...prev, ...newCatsToAdd]);
+      }
+
+      // 2. ブックマークの重複排除 & 統合
+      const existingUrlSet = new Set<string>();
+      for (const nb of notebooks) {
+        if (nb.url) {
+          existingUrlSet.add(nb.url.trim().toLowerCase());
+        }
+      }
+
+      const newNotebooksToAdd: Notebook[] = [];
+      for (const nb of importedNbs) {
+        const normUrl = (nb.url || '').trim().toLowerCase();
+        // 既存にないURLのみ追加（重複防止）
+        if (!normUrl || !existingUrlSet.has(normUrl)) {
+          if (normUrl) existingUrlSet.add(normUrl);
+          const actualCatId = nb.categoryId ? (importedCatIdToActualIdMap.get(nb.categoryId) || nb.categoryId) : '';
+          newNotebooksToAdd.push({
+            ...nb,
+            categoryId: actualCatId
+          });
+        }
+      }
+
+      // ブックマークを合流
+      if (newNotebooksToAdd.length > 0) {
+        setNotebooks(prev => [...prev, ...newNotebooksToAdd]);
+      }
+
+      const folderMsg = newCatsToAdd.length > 0 
+        ? (language === 'JP' ? `（新規フォルダ ${newCatsToAdd.length} 件新設）` : ` (${newCatsToAdd.length} new folders)`) 
+        : (language === 'JP' ? `（既存フォルダに統合）` : ` (Merged into existing folders)`);
 
       setNotification(
         language === 'JP'
-          ? `HTMLインポート統合完了: フォルダ ${stats.totalFolders} 件 / ブックマーク ${stats.totalBookmarks} 件を取り込みました（既存データ保持）`
-          : `IMPORTED: ${stats.totalFolders} FOLDERS / ${stats.totalBookmarks} BOOKMARKS PRESERVED`
+          ? `HTMLインポート完了: ${newNotebooksToAdd.length} 件のブックマークを取り込みました${folderMsg}`
+          : `IMPORTED: ${newNotebooksToAdd.length} bookmarks added${folderMsg}`
       );
     } catch (e) {
       console.error("Failed to parse HTML bookmarks", e);
@@ -794,6 +989,99 @@ export default function App() {
           : 'ERROR PARSING HTML BOOKMARKS'
       );
     }
+  };
+
+  /**
+   * 比較インポート確定ハンドラー (Prompt Mixer風 比較・重複防止)
+   * ユーザーがモーダルで選択したアイテムのみを取り込み、重複を完全に防止
+   */
+  const handleConfirmComparisonImport = (
+    selectedItems: ComparisonItem[],
+    incomingCategories: Category[]
+  ) => {
+    if (selectedItems.length === 0) {
+      setNotification(
+        language === 'JP' ? 'インポートするアイテムが選択されていません' : 'NO ITEMS SELECTED FOR IMPORT'
+      );
+      return;
+    }
+
+    // 1. カテゴリのマージ（不足しているカテゴリのみ追加）
+    const existingCatMap = new Map(categories.map(c => [c.id, c]));
+    const newCategoriesToAdd: Category[] = [];
+    for (const inCat of incomingCategories) {
+      if (!existingCatMap.has(inCat.id)) {
+        newCategoriesToAdd.push(inCat);
+        existingCatMap.set(inCat.id, inCat);
+      }
+    }
+    if (newCategoriesToAdd.length > 0) {
+      setCategories(prev => [...prev, ...newCategoriesToAdd]);
+    }
+
+    // 2. ブックマークのマージ（新規追加、既存更新、同一スキップ）
+    let newCount = 0;
+    let updateCount = 0;
+    let sameCount = 0;
+
+    const existingNbMap = new Map<string, Notebook>(notebooks.map(nb => [nb.id, nb]));
+    const newNotebooksToAdd: Notebook[] = [];
+    const updatedIdsSet = new Set<string>();
+
+    for (const item of selectedItems) {
+      if (item.status === 'new') {
+        newCount++;
+        newNotebooksToAdd.push({
+          id: 'nb_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7) + '_' + Math.random().toString(36).substring(2, 5),
+          title: item.incoming.title,
+          url: item.incoming.url,
+          categoryId: item.incoming.categoryId,
+          color: item.incoming.color,
+          isShortcut: item.incoming.isShortcut,
+          targetId: item.incoming.targetId,
+          createdAt: Date.now()
+        });
+      } else if (item.status === 'update' && item.existing) {
+        updateCount++;
+        updatedIdsSet.add(item.existing.id);
+        const existingNb = existingNbMap.get(item.existing.id);
+        if (existingNb) {
+          existingNbMap.set(item.existing.id, {
+            ...existingNb,
+            title: item.incoming.title,
+            url: item.incoming.url,
+            categoryId: item.incoming.categoryId,
+            color: item.incoming.color !== undefined ? item.incoming.color : existingNb.color,
+            isShortcut: item.incoming.isShortcut !== undefined ? item.incoming.isShortcut : existingNb.isShortcut,
+            targetId: item.incoming.targetId !== undefined ? item.incoming.targetId : existingNb.targetId
+          });
+        }
+      } else if (item.status === 'same') {
+        sameCount++;
+        // 同一（既存と全く同じ）アイテムは二重追加せずそのまま維持
+      }
+    }
+
+    // 既存リストの更新と新規アイテムの合流
+    setNotebooks(prev => {
+      const updatedExisting = prev.map(nb => {
+        if (updatedIdsSet.has(nb.id)) {
+          return existingNbMap.get(nb.id) || nb;
+        }
+        return nb;
+      });
+      return [...newNotebooksToAdd, ...updatedExisting];
+    });
+
+    const folderAddedMsg = newCategoriesToAdd.length > 0 
+      ? (language === 'JP' ? `（新規フォルダ ${newCategoriesToAdd.length} 件新設）` : ` (${newCategoriesToAdd.length} new folders)`) 
+      : '';
+
+    setNotification(
+      language === 'JP'
+        ? `比較インポート完了: 新規 ${newCount} 件、更新 ${updateCount} 件を安全に取り込みました${folderAddedMsg}`
+        : `IMPORT COMPLETE: ${newCount} Added, ${updateCount} Updated${folderAddedMsg}`
+    );
   };
 
   const handleResetAllData = () => {
@@ -941,6 +1229,10 @@ export default function App() {
           setMainView('bookmarks');
         }}
         onDropNotebooksToCategory={moveNotebooksToCategory}
+        onReorderRootCategories={handleReorderRootCategories}
+        onReorderStockCategories={handleReorderStockCategories}
+        onOpenStockImport={handleOpenStockImport}
+        onExportStockJson={handleExportStockJson}
         language={language}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
@@ -975,6 +1267,7 @@ export default function App() {
           onOpenBookmarklet={() => setIsBookmarkletModalOpen(true)}
           sidebarPosition={sidebarPosition}
           onToggleSidebarPosition={toggleSidebarPosition}
+          onOpenIconModal={() => setIsIconModalOpen(true)}
         />
 
         {/* メイン画面 ビュー切り替えタブ（03 ブックマーク一覧 / 04 フォルダー管理） */}
@@ -1102,6 +1395,37 @@ export default function App() {
         onSave={handleSaveIncomingBookmark}
         onAddCategory={addCategory}
         onCancel={() => setIncomingBookmark(null)}
+      />
+
+      {/* カオルさまご指定: Prompt Mixer風 比較インポートモーダル (ストックリスト優先比較) */}
+      <ImportComparisonModal
+        isOpen={comparisonImportData !== null}
+        incomingCategories={comparisonImportData?.incomingCategories || []}
+        incomingNotebooks={comparisonImportData?.incomingNotebooks || []}
+        existingCategories={categories}
+        existingNotebooks={notebooks}
+        language={language}
+        onConfirmImport={handleConfirmComparisonImport}
+        onClose={() => setComparisonImportData(null)}
+        initialScope={comparisonImportData?.initialScope || 'stock'}
+        stockCategoryId={stockCategory?.id}
+        stockCategoryIds={stockCategoryIds}
+      />
+
+      {/* ストックリスト専用のファイル読み込み hidden input */}
+      <input 
+        type="file" 
+        accept=".json" 
+        className="hidden" 
+        ref={stockFileInputRef} 
+        onChange={handleStockFileSelected} 
+      />
+
+      {/* アイコン変更 / 専用アイコン保管庫 モーダル */}
+      <IconModal 
+        isOpen={isIconModalOpen} 
+        onClose={() => setIsIconModalOpen(false)} 
+        language={language} 
       />
     </div>
   );

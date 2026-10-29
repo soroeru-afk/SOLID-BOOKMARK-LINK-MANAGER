@@ -3,7 +3,7 @@ import {
   LayoutGrid, Folders, Plus, Folder, FolderOpen, 
   Download, Upload, FileCode, Pencil, Trash2, RotateCcw,
   ChevronRight, ChevronDown, ChevronsUpDown, ChevronsDown, ChevronsUp, FolderTree, Search, X, Bookmark,
-  Palette, Settings, Check, Terminal, Zap, GripVertical
+  Palette, Settings, Check, Terminal, Zap, GripVertical, Star
 } from 'lucide-react';
 import { Category, Notebook } from '../types';
 import { Language, i18n } from '../i18n';
@@ -18,6 +18,10 @@ interface Props {
   activeCategory: string | null;
   onSelectCategory: (id: string | null) => void;
   onDropNotebooksToCategory?: (notebookIds: string[], targetCategoryId: string) => void;
+  onReorderRootCategories?: (sourceId: string, targetId: string) => void;
+  onReorderStockCategories?: (sourceId: string, targetId: string) => void;
+  onOpenStockImport?: () => void;
+  onExportStockJson?: () => void;
   language: Language;
   onExportJson: () => void;
   onImportJson: (content: string) => void;
@@ -57,6 +61,10 @@ export default function Sidebar({
   activeCategory, 
   onSelectCategory, 
   onDropNotebooksToCategory,
+  onReorderRootCategories,
+  onReorderStockCategories,
+  onOpenStockImport,
+  onExportStockJson,
   language, 
   onExportJson, 
   onImportJson, 
@@ -91,6 +99,16 @@ export default function Sidebar({
   const [editCatName, setEditCatName] = useState('');
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
 
+  // カオルさまご指定: [ストックリスト] と [ブックマーク] の横並びセグメントタブステート
+  const [sidebarSection, setSidebarSection] = useState<'stock' | 'bookmarks'>(() => {
+    const saved = localStorage.getItem('sidebar_section');
+    return (saved === 'stock' || saved === 'bookmarks') ? saved : 'stock';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_section', sidebarSection);
+  }, [sidebarSection]);
+
   // 下部ボトムコマンドバー ポップオーバー用ステート
   const [activeBottomTab, setActiveBottomTab] = useState<'data' | 'color' | 'stock' | null>(null);
   const bottomToolbarRef = useRef<HTMLDivElement>(null);
@@ -112,14 +130,32 @@ export default function Sidebar({
   // フォルダドロップ時のハイライト状態
   const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
 
-  const handleFolderDragOver = useCallback((e: React.DragEvent, catId: string) => {
+  // カオルさまご指定: 最上位階層カテゴリーのドラッグ＆ドロップ並び替えステート
+  const [draggedRootCatId, setDraggedRootCatId] = useState<string | null>(null);
+  const [dragOverRootCatId, setDragOverRootCatId] = useState<string | null>(null);
+
+  // カオルさまご指定: ストックリスト内サブカテゴリーのドラッグ＆ドロップ並び替えステート
+  const [draggedStockCatId, setDraggedStockCatId] = useState<string | null>(null);
+  const [dragOverStockCatId, setDragOverStockCatId] = useState<string | null>(null);
+
+  const handleFolderDragOver = useCallback((e: React.DragEvent, catId: string, isRoot: boolean, isStockSub: boolean = false) => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverCatId !== catId) {
-      setDragOverCatId(catId);
+    if (draggedStockCatId) {
+      if (isStockSub && dragOverStockCatId !== catId) {
+        setDragOverStockCatId(catId);
+      }
+    } else if (draggedRootCatId) {
+      if (isRoot && dragOverRootCatId !== catId) {
+        setDragOverRootCatId(catId);
+      }
+    } else {
+      if (dragOverCatId !== catId) {
+        setDragOverCatId(catId);
+      }
     }
-  }, [dragOverCatId]);
+  }, [draggedStockCatId, dragOverStockCatId, draggedRootCatId, dragOverRootCatId, dragOverCatId]);
 
   const handleFolderDragLeave = useCallback((e: React.DragEvent, catId: string) => {
     e.preventDefault();
@@ -127,17 +163,45 @@ export default function Sidebar({
     if (dragOverCatId === catId) {
       setDragOverCatId(null);
     }
-  }, [dragOverCatId]);
+    if (dragOverRootCatId === catId) {
+      setDragOverRootCatId(null);
+    }
+    if (dragOverStockCatId === catId) {
+      setDragOverStockCatId(null);
+    }
+  }, [dragOverCatId, dragOverRootCatId, dragOverStockCatId]);
 
-  const handleFolderDrop = useCallback((e: React.DragEvent, targetCategoryId: string) => {
+  const handleFolderDrop = useCallback((e: React.DragEvent, targetCategoryId: string, isRoot: boolean, isStockSub: boolean = false) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverCatId(null);
+    setDragOverRootCatId(null);
+    setDragOverStockCatId(null);
 
     try {
       const rawData = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
       if (!rawData) return;
       const data = JSON.parse(rawData);
+
+      // カオルさまご指定: ストックリスト内カテゴリー同士のドラッグ＆ドロップ並び替え
+      if (data && data.type === 'STOCK_SUB_CATEGORY' && data.categoryId) {
+        if (data.categoryId !== targetCategoryId) {
+          onReorderStockCategories?.(data.categoryId, targetCategoryId);
+        }
+        setDraggedStockCatId(null);
+        return;
+      }
+
+      // カオルさまご指定: 最上位カテゴリー同士のドラッグ＆ドロップ並び替え
+      if (data && data.type === 'ROOT_CATEGORY' && data.categoryId) {
+        if (isRoot && data.categoryId !== targetCategoryId) {
+          onReorderRootCategories?.(data.categoryId, targetCategoryId);
+        }
+        setDraggedRootCatId(null);
+        return;
+      }
+
+      // ブックマークのフォルダへの移動（ストックリストや一般フォルダへ自由に放り込める）
       if (data && data.type === 'BOOKMARK_ITEMS' && Array.isArray(data.ids) && data.ids.length > 0) {
         onDropNotebooksToCategory?.(data.ids, targetCategoryId);
       } else if (data && data.type === 'BOOKMARK_ITEM' && data.id) {
@@ -145,8 +209,11 @@ export default function Sidebar({
       }
     } catch (err) {
       // ignore non-json
+    } finally {
+      setDraggedRootCatId(null);
+      setDraggedStockCatId(null);
     }
-  }, [onDropNotebooksToCategory]);
+  }, [onDropNotebooksToCategory, onReorderRootCategories, onReorderStockCategories]);
 
   // フォルダの2段階削除ステート（誤クリック防止）
   const [confirmDeleteCatId, setConfirmDeleteCatId] = useState<string | null>(null);
@@ -316,6 +383,59 @@ export default function Sidebar({
     return roots;
   }, [categories, notebooks]);
 
+  // カオルさまご指定: 「★ ストックリスト」判定ヘルパー
+  const isStockListNode = useCallback((c: { id: string; name: string }) => {
+    return c.id === 'stock_root' || c.name.includes('ストックリスト') || c.name.toLowerCase().includes('stock list');
+  }, []);
+
+  // カオルさまご指定: ストックリスト（固定作業スペース）と一般フォルダー階層（アーカイブ）を分離
+  const { stockListNode, generalTree } = useMemo(() => {
+    let stockNode: CategoryTreeNode | null = null;
+    const others: CategoryTreeNode[] = [];
+
+    for (const r of categoryTree) {
+      if (isStockListNode(r)) {
+        stockNode = r;
+      } else if (r.name.toLowerCase() === 'general' && r.totalCount === 0 && r.children.length === 0) {
+        // 未使用の初期Generalフォルダーは除外
+      } else {
+        others.push(r);
+      }
+    }
+
+    return { stockListNode: stockNode, generalTree: others };
+  }, [categoryTree, isStockListNode]);
+
+  // カオルさまご指定: 「ストックリストの数字」＋「ブックマークの数字」＝「全てのデータ」の完全整合
+  const stockTotalCount = useMemo(() => {
+    return stockListNode?.totalCount || 0;
+  }, [stockListNode]);
+
+  // ブックマーク側（一般フォルダ＋未割り当て）の総件数: ストックリスト以外の全件
+  // これにより [ストックリスト] + [ブックマーク] = [すべてのデータ] が完全に一致します
+  const bookmarksTotalCount = useMemo(() => {
+    return Math.max(0, notebooks.length - stockTotalCount);
+  }, [notebooks.length, stockTotalCount]);
+
+  // ストックリスト直下へのカテゴリー追加ステート
+  const [isAddingStockSubCat, setIsAddingStockSubCat] = useState(false);
+  const [newStockSubCatName, setNewStockSubCatName] = useState('');
+
+  const handleAddStockCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStockSubCatName.trim()) {
+      setIsAddingStockSubCat(false);
+      return;
+    }
+    const parentId = stockListNode ? stockListNode.id : null;
+    onAddCategory(newStockSubCatName.trim(), parentId);
+    setNewStockSubCatName('');
+    setIsAddingStockSubCat(false);
+    if (stockListNode) {
+      setExpandedIds(prev => new Set(prev).add(stockListNode.id));
+    }
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -395,10 +515,10 @@ export default function Sidebar({
     return notebooks.filter(nb => !nb.categoryId).length;
   }, [notebooks]);
 
-  // フォルダ検索フィルター
+  // フォルダ検索フィルター（一般フォルダー階層を対象）
   const filteredTree = useMemo(() => {
     if (!folderSearchQuery.trim()) {
-      return categoryTree;
+      return generalTree;
     }
     const q = folderSearchQuery.toLowerCase().trim();
 
@@ -423,14 +543,14 @@ export default function Sidebar({
     }
 
     const result: CategoryTreeNode[] = [];
-    for (const root of categoryTree) {
+    for (const root of generalTree) {
       const filteredRoot = filterNode(root);
       if (filteredRoot) {
         result.push(filteredRoot);
       }
     }
     return result;
-  }, [categoryTree, folderSearchQuery]);
+  }, [generalTree, folderSearchQuery]);
 
   // 検索中は自動的に一致するフォルダを展開
   useEffect(() => {
@@ -448,31 +568,80 @@ export default function Sidebar({
   }, [folderSearchQuery, filteredTree]);
 
   // ノードのレンダリング
-  const renderNode = (node: CategoryTreeNode) => {
+  const renderNode = (node: CategoryTreeNode, isStockSub: boolean = false) => {
     const hasChildren = node.children.length > 0;
     const isExpanded = expandedIds.has(node.id);
     const isActive = activeCategory === node.id;
     const isEditing = editingCatId === node.id;
     const isDragOver = dragOverCatId === node.id;
 
-    // スリムなインデント計算 (1階層あたり10px)
-    const indentPx = node.level * 10 + 4;
+    // カオルさまご指定: 最上位階層カテゴリー または ストックリスト配下カテゴリーのドラッグ並び替え判定
+    const isRoot = !isStockSub && node.level === 0;
+    const isRootDragging = draggedRootCatId === node.id;
+    const isRootDragOver = dragOverRootCatId === node.id;
+
+    const isStockDragging = draggedStockCatId === node.id;
+    const isStockDragOver = dragOverStockCatId === node.id;
+
+    const isDraggable = (isRoot || isStockSub) && !isEditing;
+    const isItemDragging = isRootDragging || isStockDragging;
+    const isItemDragOver = isRootDragOver || isStockDragOver;
+
+    // スリムなインデント計算 (ストックリスト直下なら少し詰め、ツリーなら1階層あたり10px)
+    const indentPx = isStockSub ? (node.level * 8 + 6) : (node.level * 10 + 4);
 
     return (
       <div key={node.id} className="flex flex-col min-w-full">
         <div 
-          onDragOver={(e) => handleFolderDragOver(e, node.id)}
+          draggable={isDraggable}
+          onDragStart={(e) => {
+            if (!isDraggable) return;
+            e.stopPropagation();
+            const payloadType = isStockSub ? 'STOCK_SUB_CATEGORY' : 'ROOT_CATEGORY';
+            const payload = JSON.stringify({ type: payloadType, categoryId: node.id });
+            e.dataTransfer.setData('application/json', payload);
+            e.dataTransfer.setData('text/plain', payload);
+            e.dataTransfer.effectAllowed = 'move';
+            if (isStockSub) {
+              setDraggedStockCatId(node.id);
+            } else {
+              setDraggedRootCatId(node.id);
+            }
+          }}
+          onDragEnd={() => {
+            setDraggedRootCatId(null);
+            setDragOverRootCatId(null);
+            setDraggedStockCatId(null);
+            setDragOverStockCatId(null);
+          }}
+          onDragOver={(e) => handleFolderDragOver(e, node.id, isRoot, isStockSub)}
           onDragLeave={(e) => handleFolderDragLeave(e, node.id)}
-          onDrop={(e) => handleFolderDrop(e, node.id)}
+          onDrop={(e) => handleFolderDrop(e, node.id, isRoot, isStockSub)}
           className={`group/cat flex items-center min-h-[30px] py-0.5 pr-1.5 border transition-colors select-none ${
-            isDragOver
-              ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
-              : isActive 
-                ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
-                : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
+            isItemDragging
+              ? 'opacity-40 border-dashed border-border-light bg-border-main/20'
+              : isItemDragOver
+                ? 'border-t-2 border-t-accent-text ring-1 ring-accent-text bg-accent-bg/30'
+                : isDragOver
+                  ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
+                  : isActive 
+                    ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
+                    : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
           }`}
           style={{ paddingLeft: `${indentPx}px` }}
         >
+          {/* 最上位カテゴリ or ストックリスト内カテゴリのドラッグ並び替え用グリップハンドル */}
+          {(isRoot || isStockSub) && (
+            <div
+              className="text-text-dim/40 group-hover/cat:text-text-bright cursor-grab active:cursor-grabbing shrink-0 -ml-1 mr-0.5"
+              title={isStockSub 
+                ? (language === 'JP' ? 'ドラッグしてカテゴリー順序を並び替え' : 'Drag to reorder category')
+                : (language === 'JP' ? 'ドラッグして最上位カテゴリの順序を並び替え' : 'Drag to reorder root categories')}
+            >
+              <GripVertical size={11} />
+            </div>
+          )}
+
           {/* トグル展開アイコン */}
           {hasChildren ? (
             <button
@@ -595,11 +764,11 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* サブフォルダ追加フォーム */}
+        {/* サブフォルダ追加フォーム (Escキー・✕ボタンでキャンセル可能) */}
         {addingParentId === node.id && (
           <form 
             onSubmit={(e) => handleAddSub(e, node.id)} 
-            className="flex gap-1 my-1" 
+            className="flex items-center gap-1 my-1" 
             style={{ paddingLeft: `${indentPx + 14}px` }}
           >
             <input
@@ -607,12 +776,32 @@ export default function Sidebar({
               type="text"
               value={newSubCatName}
               onChange={e => setNewSubCatName(e.target.value)}
-              onBlur={() => { if (!newSubCatName) setAddingParentId(null); }}
-              placeholder={t.dirName}
+              onKeyDown={e => {
+                if (e.key === 'Escape') {
+                  setAddingParentId(null);
+                  setNewSubCatName('');
+                }
+              }}
+              placeholder={`${t.dirName} (Escでキャンセル)`}
               className="flex-1 min-w-0 h-6 px-1.5 text-[10px] bg-base-bg border border-border-main text-text-normal focus:outline-none focus:border-border-light"
             />
-            <button type="submit" className="h-6 px-2 text-[10px] bg-border-light text-text-bright hover:bg-accent-bg shrink-0">
+            <button 
+              type="submit" 
+              className="h-6 px-2 text-[10px] bg-accent-bg border border-accent-bg text-white hover:brightness-110 font-bold rounded-2xs cursor-pointer shadow-2xs shrink-0"
+              title={language === 'JP' ? '作成' : 'Add'}
+            >
               +
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                setAddingParentId(null);
+                setNewSubCatName('');
+              }}
+              className="h-6 px-1.5 text-[10px] bg-base-bg border border-border-main text-text-dim hover:text-text-bright hover:bg-border-main/20 rounded-2xs cursor-pointer shrink-0"
+              title={language === 'JP' ? 'キャンセル (やめる)' : 'Cancel'}
+            >
+              <X size={10} />
             </button>
           </form>
         )}
@@ -620,7 +809,7 @@ export default function Sidebar({
         {/* 子要素レンダリング */}
         {hasChildren && isExpanded && (
           <div className="flex flex-col border-l border-border-main/25 ml-2.5">
-            {node.children.map(child => renderNode(child))}
+            {node.children.map(child => renderNode(child, isStockSub))}
           </div>
         )}
       </div>
@@ -685,143 +874,382 @@ export default function Sidebar({
           {t.directorySets}
         </div>
         
-        {/* 新規ディレクトリ追加 & 展開・折りたたみ操作 */}
+        {/* すべてのデータ & 横並びタブ */}
         <div className="mt-1 flex flex-col gap-1.5 shrink-0">
-          {!isAddingRoot ? (
-            <div className="flex gap-1.5">
-              <button 
-                onClick={() => setIsAddingRoot(true)}
-                className="flex-1 min-w-0 h-7 flex items-center justify-center gap-1.5 border border-border-light hover:bg-border-main text-text-bright transition-colors text-[10px] font-medium tracking-wider"
-              >
-                <Plus size={12} /> {t.newDir}
-              </button>
-              <div className="flex gap-1 shrink-0">
-                {onOpenFolderManager && (
+          {/* すべてのデータ（常時ニュートラル表示：背景の派手な変色はせず、全件表示中ステータスを静かに提示） */}
+          <div className="flex flex-col gap-0.5">
+            <button 
+              type="button"
+              onClick={() => onSelectCategory(null)}
+              className={`w-full min-h-[28px] py-1 flex items-center justify-between px-2.5 border transition-colors cursor-pointer rounded-2xs ${
+                activeCategory === null
+                  ? 'border-border-light/70 bg-base-bg/60 text-text-bright shadow-2xs font-bold'
+                  : 'border-border-main/40 bg-base-bg/20 text-text-normal hover:text-text-bright hover:bg-border-main/20'
+              }`}
+              title={language === 'JP' ? 'すべてのデータをメイン画面に表示（絞り込み解除）' : 'Show All Data'}
+            >
+              <div className="flex items-center gap-1.5 truncate min-w-0">
+                <Folders size={13} className={`shrink-0 ${activeCategory === null ? 'text-accent-text' : 'text-text-dim'}`} />
+                <span className="truncate tracking-wide" style={{ fontSize: `${listFontSize}px` }}>[ {t.allData} ]</span>
+                {activeCategory === null && (
+                  <span className="text-[8px] px-1 py-0.2 bg-border-main/40 text-text-dim rounded-2xs font-mono font-normal shrink-0">
+                    {language === 'JP' ? '全件' : 'ALL'}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9.5px] font-mono shrink-0 ml-1 font-bold text-text-dim">[{notebooks.length}]</span>
+            </button>
+          </div>
+
+          {/* カオルさまご指定: [ストックリスト] と [ブックマーク] の横並びセグメントタブ (合計が全件と完全一致) */}
+          <div className="grid grid-cols-2 gap-1 p-0.5 bg-base-bg border border-border-main rounded-xs text-[10px] font-mono shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarSection('stock');
+                if (stockListNode) {
+                  onSelectCategory(stockListNode.id);
+                }
+              }}
+              className={`h-7 px-1.5 flex items-center justify-center gap-1.5 border transition-all cursor-pointer rounded-2xs ${
+                sidebarSection === 'stock'
+                  ? 'bg-accent-bg border-accent-text text-white font-bold shadow-xs'
+                  : 'bg-transparent border-transparent text-text-dim hover:text-text-bright hover:bg-panel-bg'
+              }`}
+              title={language === 'JP' ? '日常作業用ストックリスト (Google Keep風)' : 'Daily Stock List'}
+            >
+              <Star size={11} className={sidebarSection === 'stock' ? 'fill-current text-white' : 'text-amber-400'} />
+              <span className="truncate">{language === 'JP' ? 'ストックリスト' : 'STOCK LIST'}</span>
+              <span className={`text-[8.5px] px-1 py-0.2 rounded-2xs font-mono font-bold ${
+                sidebarSection === 'stock' ? 'bg-white/20 text-white' : 'bg-border-main text-text-dim'
+              }`}>
+                {stockTotalCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarSection('bookmarks');
+                // ブックマークタブを開いた時、もしストックリストが選択中なら選択解除または通常フォルダへ
+                if (activeCategory === stockListNode?.id) {
+                  onSelectCategory(null);
+                }
+              }}
+              className={`h-7 px-1.5 flex items-center justify-center gap-1.5 border transition-all cursor-pointer rounded-2xs ${
+                sidebarSection === 'bookmarks'
+                  ? 'bg-accent-bg border-accent-text text-white font-bold shadow-xs'
+                  : 'bg-transparent border-transparent text-text-dim hover:text-text-bright hover:bg-panel-bg'
+              }`}
+              title={language === 'JP' ? '大容量ブックマーク階層 (アーカイブ＋未割り当て)' : 'Bookmark Hierarchy (Archive & Unassigned)'}
+            >
+              <Bookmark size={11} className={sidebarSection === 'bookmarks' ? 'text-white' : 'text-text-dim'} />
+              <span className="truncate">{language === 'JP' ? 'ブックマーク' : 'BOOKMARKS'}</span>
+              <span className={`text-[8.5px] px-1 py-0.2 rounded-2xs font-mono font-bold ${
+                sidebarSection === 'bookmarks' ? 'bg-white/20 text-white' : 'bg-border-main text-text-dim'
+              }`}>
+                {bookmarksTotalCount}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── タブ1: ★ ストックリスト (Google Keep風 日常作業スペース) ── */}
+        {sidebarSection === 'stock' && (
+          <div className="flex flex-col flex-1 min-h-0 mt-1 gap-1.5">
+            {/* ストックリスト操作ツールバー */}
+            <div className="flex items-center justify-between px-1.5 py-1 bg-base-bg/80 border border-border-main rounded-xs text-[9px] font-mono shrink-0">
+              <span className="text-text-dim flex items-center gap-1 font-bold">
+                <span>{language === 'JP' ? 'Google Keep風カテゴリー' : 'Keep-style tags'}</span>
+              </span>
+              <div className="flex items-center gap-1">
+                {onOpenStockImport && (
                   <button
                     type="button"
-                    onClick={onOpenFolderManager}
-                    className={`h-7 px-2.5 border text-[9px] font-mono tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 ${
-                      isFolderManagerActive
-                        ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
-                        : 'border-border-main hover:border-border-light text-text-dim hover:text-text-bright'
-                    }`}
-                    title={language === 'JP' ? 'メイン画面でフォルダー管理・並び替えを開く' : 'Open Folder Manager in Main View'}
+                    onClick={onOpenStockImport}
+                    className="px-1.5 py-0.5 bg-panel-bg border border-border-main text-text-bright hover:bg-accent-bg hover:border-accent-bg hover:text-white font-bold rounded-2xs cursor-pointer transition-colors shadow-2xs"
+                    title={language === 'JP' ? 'ストックリストのみ比較インポート (JSON)' : 'Stock List Import Comparison'}
                   >
-                    <FolderTree size={12} />
-                    <span className="font-bold">{language === 'JP' ? 'フォルダ管理' : 'MGR'}</span>
+                    {language === 'JP' ? '比較' : 'DIFF'}
                   </button>
                 )}
+                {onExportStockJson && (
+                  <button
+                    type="button"
+                    onClick={onExportStockJson}
+                    className="px-1.5 py-0.5 bg-panel-bg border border-border-main text-text-bright hover:bg-accent-bg hover:border-accent-bg hover:text-white font-bold rounded-2xs cursor-pointer transition-colors shadow-2xs"
+                    title={language === 'JP' ? 'ストックリストのみバックアップ (JSON)' : 'Export Stock List'}
+                  >
+                    {language === 'JP' ? '保存' : 'EXP'}
+                  </button>
+                )}
+                {/* カオルさまご指定: カテゴリ追加のキャンセル・引っ込ませる切り替えボタン */}
                 <button
                   type="button"
                   onClick={() => {
-                    if (expandedIds.size > 0) {
-                      collapseAll();
-                    } else {
-                      expandAll();
-                    }
+                    setIsAddingStockSubCat(prev => {
+                      if (prev) setNewStockSubCatName('');
+                      return !prev;
+                    });
                   }}
-                  className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px] cursor-pointer flex items-center justify-center shrink-0"
-                  title={expandedIds.size > 0 ? (language === 'JP' ? 'すべてのフォルダを閉じる' : 'Collapse All') : (language === 'JP' ? 'すべてのフォルダを開く' : 'Expand All')}
+                  className={`px-1.5 py-0.5 border font-bold rounded-2xs cursor-pointer flex items-center gap-0.5 transition-all shadow-2xs ${
+                    isAddingStockSubCat
+                      ? 'bg-panel-bg border-border-main text-text-dim hover:text-text-bright hover:bg-border-main/20'
+                      : 'bg-accent-bg border-accent-bg text-white hover:brightness-110'
+                  }`}
+                  title={isAddingStockSubCat ? (language === 'JP' ? '入力を閉じる (やめる)' : 'Close') : (language === 'JP' ? 'ストックリスト内に新規カテゴリーを追加' : 'Add category to Stock List')}
                 >
-                  {expandedIds.size > 0 ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
+                  {isAddingStockSubCat ? <X size={9.5} /> : <Plus size={9.5} />}
+                  <span>{isAddingStockSubCat ? (language === 'JP' ? '閉じる' : 'CLOSE') : (language === 'JP' ? 'カテゴリ追加' : 'ADD CAT')}</span>
                 </button>
               </div>
             </div>
-          ) : (
-            <form onSubmit={handleAddRoot} className="flex gap-1.5">
-              <input
-                autoFocus
-                type="text"
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-                onBlur={() => { if (!newCatName) setIsAddingRoot(false); }}
-                placeholder={t.dirName}
-                className="w-full h-7 px-2 bg-base-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[10px]"
-              />
-              <button type="submit" className="h-7 px-2.5 bg-border-light text-text-bright hover:bg-accent-bg hover:text-accent-text transition-colors text-[10px] shrink-0">
-                +
-              </button>
-            </form>
-          )}
 
-          {/* フォルダ検索フィルター（大量フォルダの即時絞り込み） */}
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              value={folderSearchQuery}
-              onChange={e => setFolderSearchQuery(e.target.value)}
-              placeholder={t.filterFolders}
-              className="w-full h-7 pl-7 pr-6 bg-base-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[10px]"
-            />
-            <Search size={11} className="absolute left-2 text-text-dim pointer-events-none" />
-            {folderSearchQuery && (
-              <button
-                type="button"
-                onClick={() => setFolderSearchQuery('')}
-                className="absolute right-1.5 text-text-dim hover:text-text-bright p-0.5"
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
-
-          {/* すべてのデータ & 未割り当て */}
-          <div className="flex flex-col gap-0.5 mt-0.5">
-            <button 
-              onClick={() => onSelectCategory(null)}
-              className={`w-full min-h-[28px] py-1 flex items-center justify-between px-2.5 border transition-colors cursor-pointer ${
-                activeCategory === null 
-                  ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
-                  : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-              }`}
+            {/* ストックリスト親ノード & カテゴリーツリー（スクロール可能） */}
+            <div 
+              ref={treeScrollContainerRef}
+              className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-auto pr-1 gap-1"
             >
-              <div className="flex items-center gap-2 truncate min-w-0">
-                <Folders size={13} className={`shrink-0 ${activeCategory === null ? 'text-accent-text' : ''}`} />
-                <span className={`truncate ${activeCategory === null ? 'text-accent-text font-bold' : 'font-bold'}`} style={{ fontSize: `${listFontSize}px` }}>[ {t.allData} ]</span>
-              </div>
-              <span className={`text-[9px] font-mono shrink-0 ml-1 ${activeCategory === null ? 'text-accent-text font-bold bg-current/15 px-1.5 py-0.5 rounded-xs' : 'opacity-80'}`}>[{notebooks.length}]</span>
-            </button>
+              {/* ストックリスト親ノード */}
+              {stockListNode && (
+                <div
+                  onDragOver={(e) => handleFolderDragOver(e, stockListNode.id, false, false)}
+                  onDragLeave={(e) => handleFolderDragLeave(e, stockListNode.id)}
+                  onDrop={(e) => handleFolderDrop(e, stockListNode.id, false, false)}
+                  onClick={() => onSelectCategory(stockListNode.id)}
+                  className={`group/stock flex items-center justify-between min-h-[30px] px-2 py-1 border transition-colors cursor-pointer select-none rounded-2xs ${
+                    dragOverCatId === stockListNode.id
+                      ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
+                      : activeCategory === stockListNode.id
+                        ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm'
+                        : 'border-border-main/50 bg-base-bg/40 text-text-normal hover:text-text-bright hover:bg-border-main/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 truncate min-w-0">
+                    <Star size={13} className={`shrink-0 ${activeCategory === stockListNode.id ? 'text-accent-text fill-current' : 'text-amber-400 fill-current'}`} />
+                    <span className="truncate font-bold" style={{ fontSize: `${listFontSize}px` }}>
+                      {stockListNode.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-xs ${
+                      activeCategory === stockListNode.id
+                        ? 'text-accent-text font-bold bg-current/15'
+                        : 'text-text-dim group-hover/stock:text-text-normal'
+                    }`}>
+                      [{stockListNode.totalCount}]
+                    </span>
+                  </div>
+                </div>
+              )}
 
+              {/* 新規カテゴリー追加インラインフォーム (Escキー・✕ボタンでキャンセル可能) */}
+              {isAddingStockSubCat && (
+                <form 
+                  onSubmit={handleAddStockCategory} 
+                  className="flex items-center gap-1 p-1 bg-panel-bg border border-border-main rounded-2xs animate-in fade-in duration-100"
+                >
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newStockSubCatName}
+                    onChange={e => setNewStockSubCatName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') {
+                        setIsAddingStockSubCat(false);
+                        setNewStockSubCatName('');
+                      }
+                    }}
+                    placeholder={language === 'JP' ? 'カテゴリー名 (Escでキャンセル)' : 'Category name (Esc to cancel)...'}
+                    className="flex-1 min-w-0 h-6 px-1.5 text-[9.5px] bg-base-bg border border-border-main text-text-normal focus:outline-none focus:border-border-light"
+                  />
+                  <button 
+                    type="submit" 
+                    className="h-6 px-2 text-[9.5px] bg-accent-bg border border-accent-bg text-white hover:brightness-110 shrink-0 font-bold rounded-2xs cursor-pointer shadow-2xs"
+                    title={language === 'JP' ? '作成' : 'Add'}
+                  >
+                    +
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsAddingStockSubCat(false);
+                      setNewStockSubCatName('');
+                    }}
+                    className="h-6 px-1.5 text-[9.5px] bg-base-bg border border-border-main text-text-dim hover:text-text-bright hover:bg-border-main/20 shrink-0 rounded-2xs cursor-pointer transition-colors"
+                    title={language === 'JP' ? 'キャンセル (やめる)' : 'Cancel'}
+                  >
+                    <X size={10} />
+                  </button>
+                </form>
+              )}
+
+              {/* ストックリスト配下カテゴリー一覧 (Google Keep風、D&D並び替え可能) */}
+              {stockListNode && stockListNode.children.length > 0 ? (
+                <div className="flex flex-col gap-0.5 pl-1 border-l-2 border-accent-text/30 ml-2 mt-0.5">
+                  {stockListNode.children.map(child => renderNode(child, true))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-text-dim text-[10px] font-mono flex flex-col items-center gap-1.5">
+                  <span>{language === 'JP' ? 'ストックリスト内カテゴリーがありません' : 'NO STOCK CATEGORIES'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStockSubCat(true)}
+                    className="text-accent-text hover:underline text-[9.5px]"
+                  >
+                    + {language === 'JP' ? '最初のカテゴリーを作成' : 'Create first category'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── タブ2: 📑 ブックマーク (大容量アーカイブ階層) ── */}
+        {sidebarSection === 'bookmarks' && (
+          <div className="flex flex-col flex-1 min-h-0 mt-1 gap-1.5">
+            {/* 新規ルートディレクトリ追加 & 展開・折りたたみ & フォルダ管理 */}
+            {!isAddingRoot ? (
+              <div className="flex gap-1.5 shrink-0">
+                <button 
+                  onClick={() => setIsAddingRoot(true)}
+                  className="flex-1 min-w-0 h-7 flex items-center justify-center gap-1.5 border border-border-light hover:bg-border-main text-text-bright transition-colors text-[10px] font-medium tracking-wider"
+                >
+                  <Plus size={12} /> {t.newDir}
+                </button>
+                <div className="flex gap-1 shrink-0">
+                  {onOpenFolderManager && (
+                    <button
+                      type="button"
+                      onClick={onOpenFolderManager}
+                      className={`h-7 px-2.5 border text-[9px] font-mono tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 ${
+                        isFolderManagerActive
+                          ? 'border-accent-text bg-accent-bg text-accent-text font-bold'
+                          : 'border-border-main hover:border-border-light text-text-dim hover:text-text-bright'
+                      }`}
+                      title={language === 'JP' ? 'メイン画面でフォルダー管理・並び替えを開く' : 'Open Folder Manager in Main View'}
+                    >
+                      <FolderTree size={12} />
+                      <span className="font-bold">{language === 'JP' ? 'フォルダ管理' : 'MGR'}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (expandedIds.size > 0) {
+                        collapseAll();
+                      } else {
+                        expandAll();
+                      }
+                    }}
+                    className="h-7 px-2 border border-border-main hover:border-border-light text-text-dim hover:text-text-bright text-[9px] cursor-pointer flex items-center justify-center shrink-0"
+                    title={expandedIds.size > 0 ? (language === 'JP' ? 'すべてのフォルダを閉じる' : 'Collapse All') : (language === 'JP' ? 'すべてのフォルダを開く' : 'Expand All')}
+                  >
+                    {expandedIds.size > 0 ? <ChevronsUp size={12} /> : <ChevronsDown size={12} />}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleAddRoot} className="flex items-center gap-1 shrink-0">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') {
+                      setIsAddingRoot(false);
+                      setNewCatName('');
+                    }
+                  }}
+                  placeholder={`${t.dirName} (Escでキャンセル)`}
+                  className="flex-1 min-w-0 h-7 px-2 bg-base-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[10px]"
+                />
+                <button 
+                  type="submit" 
+                  className="h-7 px-2.5 bg-accent-bg border border-accent-bg text-white hover:brightness-110 transition-colors text-[10px] shrink-0 font-bold rounded-2xs cursor-pointer shadow-2xs"
+                  title={language === 'JP' ? '作成' : 'Add'}
+                >
+                  +
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsAddingRoot(false);
+                    setNewCatName('');
+                  }}
+                  className="h-7 px-2 bg-base-bg border border-border-main text-text-dim hover:text-text-bright hover:bg-border-main/20 transition-colors text-[10px] shrink-0 rounded-2xs cursor-pointer"
+                  title={language === 'JP' ? 'キャンセル (やめる)' : 'Cancel'}
+                >
+                  <X size={11} />
+                </button>
+              </form>
+            )}
+
+            {/* フォルダ検索フィルター（大量フォルダの即時絞り込み） */}
+            <div className="relative flex items-center shrink-0">
+              <input
+                type="text"
+                value={folderSearchQuery}
+                onChange={e => setFolderSearchQuery(e.target.value)}
+                placeholder={t.filterFolders}
+                className="w-full h-7 pl-7 pr-6 bg-base-bg border border-border-main text-text-normal placeholder:text-text-dim/50 focus:outline-none focus:border-border-light transition-colors text-[10px]"
+              />
+              <Search size={11} className="absolute left-2 text-text-dim pointer-events-none" />
+              {folderSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setFolderSearchQuery('')}
+                  className="absolute right-1.5 text-text-dim hover:text-text-bright p-0.5"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+
+            {/* フォルダツリー一覧（一般フォルダー階層：縦・横スクロール両対応） */}
+            <div 
+              ref={treeScrollContainerRef}
+              onScroll={(e) => {
+                const { scrollTop, scrollLeft } = e.currentTarget;
+                localStorage.setItem('sidebar_scroll_top', String(scrollTop));
+                localStorage.setItem('sidebar_scroll_left', String(scrollLeft));
+              }}
+              className="flex flex-col gap-0.5 mt-0.5 flex-1 overflow-y-auto overflow-x-auto pr-1"
+            >
+              {filteredTree.length === 0 ? (
+                <div className="text-[10px] text-text-dim text-center py-6">
+                  {folderSearchQuery ? 'NO MATCHING DIRECTORIES' : 'NO DIRECTORIES'}
+                </div>
+              ) : (
+                filteredTree.map(rootNode => renderNode(rootNode))
+              )}
+            </div>
+
+            {/* 未割り当て (カオルさまご指定: 一番下に配置) */}
             {unassignedCount > 0 && (
-              <button 
-                type="button"
-                onClick={() => onSelectCategory('__UNASSIGNED__')}
-                onDragOver={(e) => handleFolderDragOver(e, '__UNASSIGNED__')}
-                onDragLeave={(e) => handleFolderDragLeave(e, '__UNASSIGNED__')}
-                onDrop={(e) => handleFolderDrop(e, '__UNASSIGNED__')}
-                className={`w-full min-h-[26px] py-0.5 flex items-center justify-between px-2.5 border transition-colors cursor-pointer ${
-                  dragOverCatId === '__UNASSIGNED__'
-                    ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
-                    : activeCategory === '__UNASSIGNED__' 
-                      ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
-                      : 'border-transparent text-text-normal hover:text-text-bright hover:bg-border-main/30'
-                }`}
-              >
-                <span className={`italic truncate ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold' : ''}`} style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>
-                <span className={`text-[9px] font-mono shrink-0 ml-1 ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold bg-current/15 px-1.5 py-0.5 rounded-xs' : 'opacity-80'}`}>[{unassignedCount}]</span>
-              </button>
+              <div className="pt-1.5 border-t border-border-main/40 shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => onSelectCategory('__UNASSIGNED__')}
+                  onDragOver={(e) => handleFolderDragOver(e, '__UNASSIGNED__', false)}
+                  onDragLeave={(e) => handleFolderDragLeave(e, '__UNASSIGNED__')}
+                  onDrop={(e) => handleFolderDrop(e, '__UNASSIGNED__', false)}
+                  className={`w-full min-h-[26px] py-1 flex items-center justify-between px-2.5 border transition-colors cursor-pointer rounded-xs ${
+                    dragOverCatId === '__UNASSIGNED__'
+                      ? 'border-accent-text border-dashed bg-accent-bg/40 text-accent-text font-bold ring-1 ring-accent-text'
+                      : activeCategory === '__UNASSIGNED__' 
+                        ? 'border-border-light bg-accent-bg text-accent-text font-bold shadow-sm' 
+                        : 'border-border-main/30 bg-base-bg/50 text-text-normal hover:text-text-bright hover:bg-border-main/30'
+                  }`}
+                >
+                  <span className={`italic truncate ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold' : ''}`} style={{ fontSize: `${listFontSize}px` }}>{t.unassigned}</span>
+                  <span className={`text-[9px] font-mono shrink-0 ml-1 ${activeCategory === '__UNASSIGNED__' ? 'text-accent-text font-bold bg-current/15 px-1.5 py-0.5 rounded-xs' : 'opacity-80'}`}>[{unassignedCount}]</span>
+                </button>
+              </div>
             )}
           </div>
-        </div>
-
-        {/* フォルダツリー一覧（縦・横スクロール両対応） */}
-        <div 
-          ref={treeScrollContainerRef}
-          onScroll={(e) => {
-            const { scrollTop, scrollLeft } = e.currentTarget;
-            localStorage.setItem('sidebar_scroll_top', String(scrollTop));
-            localStorage.setItem('sidebar_scroll_left', String(scrollLeft));
-          }}
-          className="flex flex-col gap-0.5 mt-1 flex-1 overflow-y-auto overflow-x-auto pr-1"
-        >
-          {filteredTree.length === 0 ? (
-            <div className="text-[10px] text-text-dim text-center py-6">
-              {folderSearchQuery ? 'NO MATCHING DIRECTORIES' : 'NO DIRECTORIES'}
-            </div>
-          ) : (
-            filteredTree.map(rootNode => renderNode(rootNode))
-          )}
-        </div>
+        )}
 
         {/* ディレクトリ数カウンター & 幅調整ヒント */}
         <div className="pt-1.5 mt-auto border-t border-border-main text-[9px] flex justify-between text-text-normal font-medium shrink-0">
@@ -1013,8 +1441,8 @@ export default function Sidebar({
             <div className="absolute bottom-full mb-1.5 left-0 w-full z-50 bg-panel-bg border-2 border-border-light shadow-2xl p-2.5 rounded-xs flex flex-col gap-2 animate-in fade-in duration-150">
               <div className="flex items-center justify-between border-b border-border-main pb-1 text-[10px] font-bold text-text-bright">
                 <span className="flex items-center gap-1.5">
-                  <Zap size={12} className="text-accent-text" />
-                  <span>{language === 'JP' ? 'ワンクリックSTOCK (Bookmarklet)' : 'STOCK BOOKMARKLET'}</span>
+                  <Star size={12} className="text-amber-400 fill-current" />
+                  <span>{language === 'JP' ? 'ストックリスト専用ツール (STOCK)' : 'STOCK LIST TOOLS'}</span>
                 </span>
                 <button type="button" onClick={() => setActiveBottomTab(null)} className="text-text-dim hover:text-text-bright p-0.5">
                   <X size={12} />
@@ -1023,19 +1451,41 @@ export default function Sidebar({
 
               <p className="text-[8.5px] text-text-dim leading-tight">
                 {language === 'JP' 
-                  ? 'ブラウザのブックマークバーに登録すると、見ているページをワンクリックで本ツールに保存できます。' 
-                  : 'Save any web page to this tool with 1-click using browser bookmarklet.'}
+                  ? '日々の作業用ストックリスト（日常管理）の差分比較インポートや個別バックアップが行えます。' 
+                  : 'Manage daily stock list with diff comparison import and dedicated backup.'}
               </p>
 
-              {onOpenBookmarklet && (
-                <button 
-                  onClick={() => { onOpenBookmarklet(); setActiveBottomTab(null); }} 
-                  className="w-full h-7 flex items-center justify-center gap-2 border border-accent-text bg-accent-bg/40 text-accent-text font-bold hover:bg-accent-bg transition-colors text-[9.5px] cursor-pointer"
-                >
-                  <Bookmark size={12} /> 
-                  <span>{language === 'JP' ? 'Bookmarklet コードを取得' : 'Get Bookmarklet Code'}</span>
-                </button>
-              )}
+              <div className="flex flex-col gap-1 text-[9.5px]">
+                {onOpenStockImport && (
+                  <button 
+                    onClick={() => { onOpenStockImport(); setActiveBottomTab(null); }} 
+                    className="w-full h-7 flex items-center justify-start px-2 gap-2 border border-accent-text bg-accent-bg/40 text-accent-text font-bold hover:bg-accent-bg transition-colors cursor-pointer"
+                  >
+                    <Download size={11} className="shrink-0" /> 
+                    <span className="truncate">{language === 'JP' ? 'ストックリスト 比較インポート (JSON)' : 'Stock List Import Comparison'}</span>
+                  </button>
+                )}
+
+                {onExportStockJson && (
+                  <button 
+                    onClick={() => { onExportStockJson(); setActiveBottomTab(null); }} 
+                    className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-border-main/50 transition-colors cursor-pointer"
+                  >
+                    <FileCode size={11} className="shrink-0 text-accent-text" /> 
+                    <span className="truncate">{language === 'JP' ? 'ストックリストのみバックアップ (JSON)' : 'Export Stock List Only'}</span>
+                  </button>
+                )}
+
+                {onOpenBookmarklet && (
+                  <button 
+                    onClick={() => { onOpenBookmarklet(); setActiveBottomTab(null); }} 
+                    className="w-full h-6.5 flex items-center justify-start px-2 gap-2 border border-border-main text-text-normal font-medium bg-base-bg hover:text-text-bright hover:bg-border-main/50 transition-colors cursor-pointer mt-0.5"
+                  >
+                    <Bookmark size={11} className="shrink-0 text-amber-400" /> 
+                    <span className="truncate">{language === 'JP' ? 'ワンクリック保存 Bookmarklet コード' : 'Bookmarklet Code'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
